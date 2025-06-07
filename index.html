@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>BN Cab's - Fleet Manager</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="auth.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>BN Cab's - Fleet Manager</h1>
+      <div id="profilePanel" class="profile-panel admin-only">
+        <span id="welcomeMessage"></span>
+        <button onclick="logout()">Logout</button>
+      </div>
+    </header>
+
+    <nav id="mainNav">
+      <button onclick="showTab('entry')">New Entry</button>
+      <button onclick="showTab('database')">Database</button>
+      <button onclick="showTab('weekly')" class="admin-only">Weekly Summary</button>
+      <button onclick="showTab('setup')" class="admin-only">Setup</button>
+      <button onclick="showTab('joining')" class="admin-only">Joining Form</button>
+      <button onclick="showTab('summary')" class="admin-only">Summary</button>
+    </nav>
+
+    <!-- Entry Tab -->
+    <section id="entry" class="tab active">
+      <form id="entryForm">
+        <div class="form-grid">
+          <!-- Row 1 -->
+          <div class="form-row">
+            <label>Date <input type="date" name="date" required></label>
+            <label>Driver <input list="driversList" name="driver" required oninput="autoFillVehicle(this.value)"></label>
+            <datalist id="driversList"></datalist>
+            <label>Vehicle <input type="text" name="vehicle" id="vehicleInput" required></label>
+          </div>
+
+          <!-- Row 2 -->
+          <div class="form-row">
+            <label>Earnings <input type="number" name="earnings" required></label>
+            <label>Cash Collection <input type="number" name="cash" required></label>
+            <label>Offline Earnings <input type="number" name="offlineEarnings" required></label>
+          </div>
+
+          <!-- Row 3 -->
+          <div class="form-row">
+            <label>Offline Cash <input type="number" name="offlineCash" required></label>
+            <label>No. of Trips <input type="number" name="trips" required></label>
+            <label>Toll <input type="number" name="toll" required></label>
+          </div>
+
+          <!-- Row 4 -->
+          <div class="form-row">
+            <label>CNG <input type="number" name="cng" required></label>
+            <label>Petrol <input type="number" name="petrol" required></label>
+            <label>Other Expenses <input type="number" name="other" required></label>
+          </div>
+
+          <!-- Row 5 -->
+          <div class="form-row">
+            <label>Login Hours <input type="number" name="hours" step="0.01" min="0" required></label>
+            <label>Opening Balance <input type="number" name="ob" required></label>
+            <label>Room Rent <input type="number" name="roomRent" value="0" readonly></label>
+          </div>
+        </div>
+
+        <!-- Auto Calculations -->
+        <div class="auto-fields">
+          <div><strong>Pay %:</strong> <span id="payPercent">0</span>%</div>
+          <div><strong>Salary:</strong> ₹<span id="salary">0.00</span></div>
+          <div><strong>Payable:</strong> ₹<span id="payable">0.00</span></div>
+          <div><strong>Commission:</strong> ₹<span id="commission">0.00</span></div>
+        </div>
+
+        <div class="actions">
+          <button type="submit">Save</button>
+          <button type="button" onclick="shareEntry()">Share</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Database Tab -->
+    <section id="database" class="tab">
+      <div class="filters">
+        <label>From <input type="date" id="filterFrom"></label>
+        <label>To <input type="date" id="filterTo"></label>
+        <label>Driver <select id="filterDriver"></select></label>
+        <label>Vehicle <select id="filterVehicle"></select></label>
+        <button onclick="filterDatabase()">Filter</button>
+        <button onclick="clearFilters()">Clear</button>
+        <button onclick="exportDatabaseExcel()">Export Excel</button>
+        <input type="file" accept=".xlsx" onchange="importExcel(event)">
+      </div>
+      <div class="table-container">
+        <table id="dataTable">
+          <thead>
+            <tr>
+              <th><span>Date</span></th>
+              <th><span>Driver</span></th>
+              <th><span>Vehicle</span></th>
+              <th><span>Earnings</span></th>
+              <th><span>Cash Collection</span></th>
+              <th><span>Offline Earnings</span></th>
+              <th><span>Offline Cash</span></th>
+              <th><span>Trips</span></th>
+              <th><span>Toll</span></th>
+              <th><span>Login Hrs</span></th>
+              <th><span>Salary</span></th>
+              <th><span>CNG</span></th>
+              <th><span>Petrol</span></th>
+              <th><span>Other Expenses</span></th>
+              <th><span>Opening Balance</span></th>
+              <th><span>Room Rent</span></th>
+              <th><span>Payable</span></th>
+              <th class="admin-only"><span>P&L</span></th>
+              <th><span>Actions</span></th>
+            </tr>
+          </thead>
+          <tbody id="dataBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Weekly Summary -->
+    <section id="weekly" class="tab admin-only">
+      <div class="filters">
+        <label>From <input type="date" id="weeklyFrom" required></label>
+        <label>To <input type="date" id="weeklyTo" required></label>
+        <label>Vehicle <select id="weeklyVehicle">
+          <option value="">All Vehicles</option>
+        </select></label>
+        <button onclick="generateWeeklySummary()" class="primary">Generate</button>
+        <button onclick="exportWeekly()" class="secondary">Export Excel</button>
+      </div>
+      <div class="table-container">
+        <table id="weeklyTable">
+          <thead>
+            <tr>
+              <th><span>Week Start</span></th>
+              <th><span>Week End</span></th>
+              <th><span>Vehicle</span></th>
+              <th><span>Earnings</span></th>
+              <th><span>Cash</span></th>
+              <th><span>Uber Commission</span></th>
+              <th><span>Toll</span></th>
+              <th><span>Trips</span></th>
+              <th><span>Rent</span></th>
+              <th><span>Days</span></th>
+              <th><span>Insurance</span></th>
+              <th><span>TDS</span></th>
+              <th><span>Payable</span></th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Setup Tab -->
+    <section id="setup" class="tab admin-only">
+      <div class="setup-tabs">
+        <button onclick="showSetupTab('driverDetails')" class="active">Driver Details</button>
+        <button onclick="showSetupTab('vehicleAssignment')">Vehicle Assignment</button>
+        <button onclick="showSetupTab('roomAllocation')">Room Allocation</button>
+        <button onclick="showSetupTab('pinManagement')">PIN Management</button>
+      </div>
+
+      <!-- Driver Details Tab -->
+      <div id="driverDetails" class="setup-content active">
+        <div class="driver-list">
+          <select id="driverSelect" onchange="showDriverDetails()">
+            <option value="">Select Driver</option>
+          </select>
+          <button onclick="editDriverProfile()" class="edit-btn">Edit</button>
+          <button onclick="deleteDriverProfile()" class="delete-btn">Delete</button>
+        </div>
+        <div id="driverProfile" class="profile-details">
+          <!-- Driver details will be loaded here -->
+        </div>
+      </div>
+
+      <!-- Vehicle Assignment Tab -->
+      <div id="vehicleAssignment" class="setup-content">
+        <div class="assignment-form">
+          <select id="assignDriver">
+            <option value="">Select Driver</option>
+          </select>
+          <select id="assignVehicle">
+            <option value="">Select Vehicle</option>
+          </select>
+          <button onclick="assignDriverVehicle()" class="primary">Assign</button>
+        </div>
+        <div class="assignment-list" id="assignmentList">
+          <!-- Assignments will be listed here -->
+        </div>
+      </div>
+
+      <!-- Room Allocation Tab -->
+      <div id="roomAllocation" class="setup-content">
+        <div class="room-form">
+          <select id="roomDriver">
+            <option value="">Select Driver</option>
+          </select>
+          <button onclick="toggleRoomAllocation()" class="primary">Toggle Room Allocation</button>
+        </div>
+        <div class="room-list" id="roomList">
+          <!-- Room allocations will be listed here -->
+        </div>
+      </div>
+
+      <!-- PIN Management Tab -->
+      <div id="pinManagement" class="setup-content">
+        <div class="pin-form">
+          <select id="pinDriver">
+            <option value="">Select Driver</option>
+          </select>
+          <input type="password" id="driverPin" placeholder="Enter 6-digit PIN" maxlength="6" pattern="[0-9]*">
+          <button onclick="setDriverPin()" class="primary">Set PIN</button>
+        </div>
+        <div class="pin-list" id="pinList">
+          <!-- PINs will be listed here -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Joining Form Tab -->
+    <section id="joining" class="tab admin-only">
+      <div class="container">
+        <div class="header">
+          <h1>BN Cab's</h1>
+          <h2>Driver Joining Form</h2>
+        </div>
+
+        <form id="joiningForm" onsubmit="return handleJoiningSubmit(event)">
+          <div class="form-grid">
+            <!-- Personal Information -->
+            <div class="form-group">
+              <label for="name">Name</label>
+              <input type="text" id="name" name="name" required>
+            </div>
+            <div class="form-group">
+              <label for="fatherName">Father's Name</label>
+              <input type="text" id="fatherName" name="fatherName" required>
+            </div>
+            <div class="form-group">
+              <label for="dob">Date of Birth</label>
+              <input type="date" id="dob" name="dob" required>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="form-group">
+              <label for="mobile1">Mobile Number</label>
+              <input type="tel" id="mobile1" name="mobile1" required pattern="[0-9]{10}">
+            </div>
+            <div class="form-group">
+              <label for="mobile2">Alternate Mobile Number</label>
+              <input type="tel" id="mobile2" name="mobile2" pattern="[0-9]{10}">
+            </div>
+            <div class="form-group">
+              <label for="email">Gmail ID</label>
+              <input type="email" id="email" name="email" required>
+            </div>
+
+            <!-- Document Information -->
+            <div class="form-group">
+              <label for="dlNumber">DL Number</label>
+              <input type="text" id="dlNumber" name="dlNumber" required>
+            </div>
+            <div class="form-group">
+              <label>DL Upload</label>
+              <div class="upload-group">
+                <button type="button" class="upload-button" onclick="document.getElementById('dlUpload').click()">Upload DL</button>
+                <input type="file" id="dlUpload" accept="image/*,.pdf" onchange="handleFileUpload(this, 'dlStatus')">
+                <span id="dlStatus" class="upload-status">No file selected</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="aadharNumber">Aadhar Number</label>
+              <input type="text" id="aadharNumber" name="aadharNumber" required pattern="[0-9]{12}">
+            </div>
+            <div class="form-group">
+              <label>Aadhar Upload</label>
+              <div class="upload-group">
+                <button type="button" class="upload-button" onclick="document.getElementById('aadharUpload').click()">Upload Aadhar</button>
+                <input type="file" id="aadharUpload" accept="image/*,.pdf" onchange="handleFileUpload(this, 'aadharStatus')">
+                <span id="aadharStatus" class="upload-status">No file selected</span>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label for="panNumber">PAN Number</label>
+              <input type="text" id="panNumber" name="panNumber" required pattern="[A-Z]{5}[0-9]{4}[A-Z]{1}">
+            </div>
+
+            <div class="form-group">
+              <label for="passportNumber">Passport Number</label>
+              <input type="text" id="passportNumber" name="passportNumber">
+            </div>
+            <div class="form-group">
+              <label>Passport Upload</label>
+              <div class="upload-group">
+                <button type="button" class="upload-button" onclick="document.getElementById('passportUpload').click()">Upload Passport</button>
+                <input type="file" id="passportUpload" accept="image/*,.pdf" onchange="handleFileUpload(this, 'passportStatus')">
+                <span id="passportStatus" class="upload-status">No file selected</span>
+              </div>
+            </div>
+
+            <!-- Address Information -->
+            <div class="form-group">
+              <label for="permanentAddress">Permanent Address</label>
+              <input type="text" id="permanentAddress" name="permanentAddress" required>
+            </div>
+            <div class="form-group">
+              <label>Photo Upload</label>
+              <div class="upload-group">
+                <button type="button" class="upload-button" onclick="document.getElementById('photoUpload').click()">Upload Photo</button>
+                <input type="file" id="photoUpload" accept="image/*" onchange="handleFileUpload(this, 'photoStatus')">
+                <span id="photoStatus" class="upload-status">No file selected</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="presentAddress">Present Address</label>
+              <input type="text" id="presentAddress" name="presentAddress" required>
+            </div>
+
+            <!-- Reference Information -->
+            <div class="form-group">
+              <label for="reference1Name">Reference Name 1</label>
+              <input type="text" id="reference1Name" name="reference1Name" required>
+            </div>
+            <div class="form-group">
+              <label for="reference1Relation">Relationship</label>
+              <input type="text" id="reference1Relation" name="reference1Relation" required>
+            </div>
+            <div class="form-group">
+              <label for="reference1Mobile">Mobile Number</label>
+              <input type="tel" id="reference1Mobile" name="reference1Mobile" required pattern="[0-9]{10}">
+            </div>
+
+            <div class="form-group">
+              <label for="reference2Name">Reference Name 2</label>
+              <input type="text" id="reference2Name" name="reference2Name" required>
+            </div>
+            <div class="form-group">
+              <label for="reference2Relation">Relationship</label>
+              <input type="text" id="reference2Relation" name="reference2Relation" required>
+            </div>
+            <div class="form-group">
+              <label for="reference2Mobile">Mobile Number</label>
+              <input type="tel" id="reference2Mobile" name="reference2Mobile" required pattern="[0-9]{10}">
+            </div>
+          </div>
+
+          <div class="actions">
+            <button type="submit" class="submit-button">Submit</button>
+            <button type="button" class="cancel-button" onclick="showTab('setup')">Cancel</button>
+          </div>
+
+          <div id="joiningErrorMessage" class="error-message"></div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Summary Tab -->
+    <section id="summary" class="tab admin-only">
+      <div class="container">
+        <h2>Summary Dashboard</h2>
+        
+        <div class="chart-container">
+          <h3>Earnings by Driver</h3>
+          <canvas id="earningsChart"></canvas>
+        </div>
+
+        <div class="chart-container">
+          <h3>Weekly Trends</h3>
+          <canvas id="weeklyTrendsChart"></canvas>
+        </div>
+
+        <div class="action-buttons">
+          <button class="share-button" onclick="shareData('summary')">
+            <i class="fas fa-share-alt"></i>
+            Share Data
+          </button>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

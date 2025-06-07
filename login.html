@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BN Cab's - Login</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f4f6f9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 1rem;
+    }
+
+    .login-container {
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .company-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .company-header h1 {
+      color: #1976d2;
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .company-header p {
+      color: #666;
+      font-size: 1.1rem;
+    }
+
+    .login-form {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .form-group label {
+      color: #444;
+      font-size: 0.9rem;
+    }
+
+    .form-group input {
+      padding: 0.8rem;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #1976d2;
+    }
+
+    .forgot-password {
+      text-align: right;
+      font-size: 0.9rem;
+    }
+
+    .forgot-password a {
+      color: #1976d2;
+      text-decoration: none;
+    }
+
+    .forgot-password a:hover {
+      text-decoration: underline;
+    }
+
+    .login-button {
+      background: #1976d2;
+      color: white;
+      padding: 0.8rem;
+      border: none;
+      border-radius: 4px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 1rem;
+    }
+
+    .login-button:hover {
+      background: #1565c0;
+    }
+
+    .error-message {
+      color: #d32f2f;
+      font-size: 0.9rem;
+      text-align: center;
+      margin-top: 1rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="company-header">
+      <h1>BN Cab's</h1>
+      <p>Admin/Driver/Fleet Login</p>
+    </div>
+    <form class="login-form" id="loginForm" onsubmit="return handleLogin(event)">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" name="username" required>
+      </div>
+      <div class="form-group">
+        <label for="pin">PIN</label>
+        <input type="password" id="pin" name="pin" required maxlength="6" pattern="[0-9]*">
+      </div>
+      <div class="forgot-password">
+        <a href="#" onclick="showForgotPassword()">Forgot Password?</a>
+      </div>
+      <button type="submit" class="login-button">Login</button>
+      <div id="errorMessage" class="error-message"></div>
+    </form>
+  </div>
+
+  <script>
+    // Initialize default admin pin if not exists
+    if (!localStorage.getItem('driverPins')) {
+      localStorage.setItem('driverPins', JSON.stringify({
+        'admin': '123456' // Default admin pin
+      }));
+    }
+
+    function handleLogin(event) {
+      event.preventDefault();
+      const username = document.getElementById('username').value;
+      const pin = document.getElementById('pin').value;
+      const driverPins = JSON.parse(localStorage.getItem('driverPins') || '{}');
+      
+      if (driverPins[username] === pin) {
+        // Set user role and redirect
+        const isAdmin = username === 'admin';
+        localStorage.setItem('currentUser', JSON.stringify({
+          username,
+          role: isAdmin ? 'admin' : 'driver'
+        }));
+        window.location.href = 'index.html';
+      } else {
+        const errorMessage = document.getElementById('errorMessage');
+        errorMessage.style.display = 'block';
+        errorMessage.textContent = 'Invalid username or PIN';
+      }
+      return false;
+    }
+
+    function showForgotPassword() {
+      alert('Please contact your administrator to reset your PIN.');
+    }
+  </script>
+</body>
+</html> 
