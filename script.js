@@ -783,93 +783,105 @@ function exportWeekly() {
 }
 
 function generateWeeklySummary() {
-  const tbody = document.querySelector("#weeklyTable tbody");
-  tbody.innerHTML = "";
-  const start = new Date(document.getElementById('weeklyFrom').value);
-  const end = new Date(document.getElementById('weeklyTo').value);
-  const fVehicle = document.getElementById('weeklyVehicle').value;
+  const fromDate = new Date(document.getElementById('weeklyFrom').value);
+  const toDate = new Date(document.getElementById('weeklyTo').value);
+  const vehicleFilter = document.getElementById('weeklyVehicle').value;
 
-  if (!start || !end) {
-    alert('Please select both From and To dates');
+  if (!fromDate || !toDate) {
+    alert('Please select both from and to dates');
     return;
   }
 
-  if (start > end) {
-    alert('From date cannot be after To date');
-    return;
-  }
+  const entries = JSON.parse(localStorage.getItem('entries') || '[]');
+  const vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
+  
+  // Filter entries by date range and vehicle
+  const filteredEntries = entries.filter(entry => {
+    const entryDate = new Date(entry.date);
+    const vehicleMatch = !vehicleFilter || entry.vehicle === vehicleFilter;
+    return entryDate >= fromDate && entryDate <= toDate && vehicleMatch;
+  });
 
-  const summary = {};
-
-  // Process entries for weekly summary
-  for (const e of entries) {
-    const d = new Date(e.date);
-    if ((!isNaN(start) && d < start) || (!isNaN(end) && d > end)) continue;
-    if (fVehicle && e.vehicle !== fVehicle) continue;
-
-    // Get Monday of the week
-    const monday = new Date(d);
-    monday.setDate(d.getDate() - d.getDay() + 1);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
+  // Group entries by week
+  const weeklyData = {};
+  filteredEntries.forEach(entry => {
+    const entryDate = new Date(entry.date);
+    const weekStart = new Date(entryDate);
+    weekStart.setDate(entryDate.getDate() - entryDate.getDay()); // Start of week (Sunday)
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6); // End of week (Saturday)
     
-    const weekKey = `${e.vehicle}-${monday.toISOString().slice(0,10)}`;
-    if (!summary[weekKey]) {
-      summary[weekKey] = {
-        vehicle: e.vehicle,
-        start: monday,
-        end: sunday,
+    const weekKey = weekStart.toISOString().split('T')[0];
+    if (!weeklyData[weekKey]) {
+      weeklyData[weekKey] = {
+        weekStart: weekStart.toISOString().split('T')[0],
+        weekEnd: weekEnd.toISOString().split('T')[0],
+        vehicle: entry.vehicle,
         earnings: 0,
         cash: 0,
         commission: 0,
-        trips: 0,
         toll: 0,
+        trips: 0,
+        rent: 0,
         days: 0,
-        tds: 0
+        insurance: 0,
+        tds: 0,
+        payable: 0
       };
     }
-
-    const row = summary[weekKey];
-    row.earnings += +e.earnings;
-    row.cash += +e.cash;
-    row.commission += ((+e.cash || 0) - (+e.earnings || 0)); // Uber Commission calculation
-    row.trips += +e.trips;
-    row.toll += +e.toll;
-    row.days++;
-  }
-
-  // Generate table rows
-  for (const row of Object.values(summary)) {
-    // Calculate rent based on trips
-    let rent = 1050; // Default rent
-    if (row.trips >= 120) rent = 750;
-    else if (row.trips >= 90) rent = 850;
-    else if (row.trips >= 60) rent = 950;
-
-    // Calculate insurance (₹30 per day)
-    const insurance = row.days * 30;
-
+    
+    weeklyData[weekKey].earnings += Number(entry.earnings) || 0;
+    weeklyData[weekKey].cash += Number(entry.cash) || 0;
+    weeklyData[weekKey].commission += (Number(entry.earnings) * 0.25) || 0; // 25% commission
+    weeklyData[weekKey].toll += Number(entry.toll) || 0;
+    weeklyData[weekKey].trips += Number(entry.trips) || 0;
+    weeklyData[weekKey].rent += Number(entry.roomRent) || 0;
+    weeklyData[weekKey].days++;
+    
+    // Calculate insurance and TDS
+    const vehicle = vehicles.find(v => v.id === entry.vehicle);
+    if (vehicle) {
+      weeklyData[weekKey].insurance = 100; // Fixed insurance per week
+      weeklyData[weekKey].tds = (Number(entry.earnings) * 0.05) || 0; // 5% TDS
+    }
+    
     // Calculate payable
-    const payable = (rent * row.days) + insurance + row.tds + row.commission - row.toll;
+    weeklyData[weekKey].payable = weeklyData[weekKey].earnings - 
+                                 weeklyData[weekKey].commission - 
+                                 weeklyData[weekKey].toll - 
+                                 weeklyData[weekKey].rent - 
+                                 weeklyData[weekKey].insurance - 
+                                 weeklyData[weekKey].tds;
+  });
 
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${row.start.toISOString().slice(0,10)}</td>
-      <td>${row.end.toISOString().slice(0,10)}</td>
-      <td>${row.vehicle}</td>
-      <td>${row.earnings.toFixed(2)}</td>
-      <td>${row.cash.toFixed(2)}</td>
-      <td>${row.commission.toFixed(2)}</td>
-      <td>${row.toll.toFixed(2)}</td>
-      <td>${row.trips}</td>
-      <td>${rent}</td>
-      <td>${row.days}</td>
-      <td>${insurance}</td>
-      <td><input type="number" value="${row.tds}" onchange="updateWeeklyPayable(this)" step="0.01"></td>
-      <td class="payable">${payable.toFixed(2)}</td>
+  // Sort weeks by start date
+  const sortedWeeks = Object.values(weeklyData).sort((a, b) => 
+    new Date(a.weekStart) - new Date(b.weekStart)
+  );
+
+  // Update table
+  const tbody = document.querySelector('#weeklyTable tbody');
+  tbody.innerHTML = sortedWeeks.map(week => {
+    const vehicle = vehicles.find(v => v.id === week.vehicle);
+    const vehicleDisplay = vehicle ? `${vehicle.name} (${vehicle.number})` : 'Unknown Vehicle';
+    return `
+      <tr>
+        <td>${week.weekStart}</td>
+        <td>${week.weekEnd}</td>
+        <td>${vehicleDisplay}</td>
+        <td>${formatCurrency(week.earnings)}</td>
+        <td>${formatCurrency(week.cash)}</td>
+        <td>${formatCurrency(week.commission)}</td>
+        <td>${formatCurrency(week.toll)}</td>
+        <td>${week.trips}</td>
+        <td>${formatCurrency(week.rent)}</td>
+        <td>${week.days}</td>
+        <td>${formatCurrency(week.insurance)}</td>
+        <td>${formatCurrency(week.tds)}</td>
+        <td>${formatCurrency(week.payable)}</td>
+      </tr>
     `;
-    tbody.appendChild(tr);
-  }
+  }).join('');
 }
 
 function updateWeeklyPayable(input) {
