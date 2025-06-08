@@ -1,3 +1,4 @@
+// Initialize global variables
 let drivers = JSON.parse(localStorage.getItem('drivers') || '[]');
 let vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
 let assignments = JSON.parse(localStorage.getItem('assignments') || '{}');
@@ -13,13 +14,18 @@ if (!localStorage.getItem('vehicles')) {
   localStorage.setItem('vehicles', JSON.stringify([]));
 }
 
+// Core functions
 function showTab(id) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  
+  // Update content based on tab
   if (id === 'database') renderDatabase();
   if (id === 'weekly') generateWeeklySummary();
   if (id === 'summary') renderSummary();
   if (id === 'setup') renderSetup();
+  
+  // Update dropdowns
   updateDropdowns();
 }
 
@@ -55,6 +61,22 @@ function updateDropdowns() {
     }
   }
 }
+
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize UI
+  updateDropdowns();
+  renderSetup();
+  renderDatabase();
+  
+  // Add event listeners
+  const form = document.getElementById('entryForm');
+  if (form) {
+    ['earnings', 'offlineEarnings', 'hours'].forEach(field => {
+      form[field].addEventListener('input', updateEntryCalculations);
+    });
+  }
+});
 
 function addDriver() {
   const name = prompt("Enter driver name:");
@@ -118,8 +140,9 @@ function autoFillVehicle(driverName) {
 
 function renderSetup() {
   // Update driver select dropdowns
-  const driverOptions = drivers.map(d => `<option value="${d}">${d}</option>`).join('');
-  ['driverSelect', 'assignDriver', 'roomDriver'].forEach(id => {
+  const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
+  const driverOptions = driverProfiles.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+  ['driverSelect', 'assignDriver', 'roomDriver', 'pinDriver'].forEach(id => {
     const element = document.getElementById(id);
     if (element) {
       element.innerHTML = `<option value="">Select Driver</option>${driverOptions}`;
@@ -127,7 +150,8 @@ function renderSetup() {
   });
 
   // Update vehicle select dropdown
-  const vehicleOptions = vehicles.map(v => `<option value="${v}">${v}</option>`).join('');
+  const vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
+  const vehicleOptions = vehicles.map(v => `<option value="${v.id}">${v.name} (${v.number})</option>`).join('');
   const assignVehicle = document.getElementById('assignVehicle');
   if (assignVehicle) {
     assignVehicle.innerHTML = `<option value="">Select Vehicle</option>${vehicleOptions}`;
@@ -138,12 +162,16 @@ function renderSetup() {
   if (assignmentList) {
     const assignments = JSON.parse(localStorage.getItem('assignments') || '{}');
     assignmentList.innerHTML = Object.entries(assignments)
-      .map(([driver, vehicle]) => `
-        <div class="assignment-item">
-          <span>${driver} → ${vehicle}</span>
-          <button onclick="removeAssignment('${driver}')" class="delete-btn">Delete</button>
-        </div>
-      `).join('');
+      .map(([driver, vehicle]) => {
+        const driverObj = driverProfiles.find(d => d.id === driver);
+        const vehicleObj = vehicles.find(v => v.id === vehicle);
+        return `
+          <div class="assignment-item">
+            <span>${driverObj ? driverObj.name : driver} → ${vehicleObj ? vehicleObj.name : vehicle}</span>
+            <button onclick="removeAssignment('${driver}')" class="delete-btn">Delete</button>
+          </div>
+        `;
+      }).join('');
   }
 
   // Render room allocations list
@@ -151,14 +179,17 @@ function renderSetup() {
   if (roomList) {
     const roomAllocations = JSON.parse(localStorage.getItem('roomAllocations') || '{}');
     roomList.innerHTML = Object.entries(roomAllocations)
-      .map(([driver, hasRoom]) => `
-        <div class="room-item">
-          <span>${driver} - Room Rent: ₹${hasRoom ? '50' : '0'}</span>
-          <button onclick="toggleRoomAllocation('${driver}')" class="edit-btn">
-            ${hasRoom ? 'Remove Room' : 'Add Room'}
-          </button>
-        </div>
-      `).join('');
+      .map(([driver, hasRoom]) => {
+        const driverObj = driverProfiles.find(d => d.id === driver);
+        return `
+          <div class="room-item">
+            <span>${driverObj ? driverObj.name : driver} - Room Rent: ₹${hasRoom ? '50' : '0'}</span>
+            <button onclick="toggleRoomAllocation('${driver}')" class="edit-btn">
+              ${hasRoom ? 'Remove Room' : 'Add Room'}
+            </button>
+          </div>
+        `;
+      }).join('');
   }
 }
 
@@ -223,11 +254,12 @@ document.getElementById('entryForm').addEventListener('input', () => {
   // Calculate Pay% based on earnings slab
   let pay = 0;
   if (totalEarnings >= 7000) pay = 38;
-  else if (totalEarnings >= 6000) pay = 34;
-  else if (totalEarnings >= 5000) pay = 32;
-  else if (totalEarnings >= 4000) pay = 30;
-  else if (totalEarnings >= 2500) pay = 25;
-  else if (totalEarnings >= 1800) pay = 20;
+  else if (totalEarnings >= 6000) pay = 38;
+  else if (totalEarnings >= 5000) pay = 34;
+  else if (totalEarnings >= 4000) pay = 32;
+  else if (totalEarnings >= 3000) pay = 30;
+  else if (totalEarnings >= 2000) pay = 23;
+  else if (totalEarnings >= 1000) pay = 10;
   else pay = 0;
 
   // Hours check with decimal support
@@ -304,6 +336,37 @@ document.getElementById('entryForm').addEventListener('submit', function(event) 
     // Calculate total earnings
     entry.totalEarnings = (parseFloat(entry.earnings) || 0) + (parseFloat(entry.offlineEarnings) || 0);
     
+    // Calculate salary and payable
+    const totalEarnings = (parseFloat(entry.earnings) || 0) + (parseFloat(entry.offlineEarnings) || 0);
+    const hours = parseFloat(entry.hours) || 0;
+    let pay = 0;
+    if (totalEarnings >= 7000) pay = 38;
+    else if (totalEarnings >= 6000) pay = 38;
+    else if (totalEarnings >= 5000) pay = 34;
+    else if (totalEarnings >= 4000) pay = 32;
+    else if (totalEarnings >= 3000) pay = 30;
+    else if (totalEarnings >= 2000) pay = 23;
+    else if (totalEarnings >= 1000) pay = 10;
+    else pay = 0;
+    if (hours < 9) pay = Math.max(0, pay - 10);
+    else if (hours < 11) pay = Math.max(0, pay - 5);
+
+    const salary = Math.round(totalEarnings * pay / 100);
+    const roomRent = roomAllocations[driverName] ? 50 : 0;
+    const payable = Math.round(
+      (parseFloat(entry.cash) || 0) +
+      (parseFloat(entry.offlineCash) || 0) -
+      salary -
+      (parseFloat(entry.cng) || 0) -
+      (parseFloat(entry.petrol) || 0) -
+      (parseFloat(entry.other) || 0) +
+      (parseFloat(entry.ob) || 0) +
+      roomRent
+    );
+
+    entry.salary = salary;
+    entry.payable = payable;
+    
     // Get existing entries and save
     const entries = JSON.parse(localStorage.getItem('entries') || '[]');
     entries.push(entry);
@@ -337,6 +400,9 @@ function renderDatabase() {
   
   // Apply any active filters
   const filteredData = filterEntries(filteredEntries);
+
+  // Sort by timestamp descending (latest saved first)
+  filteredData.sort((a, b) => new Date(b.timestamp || b.id.split('e')[1]) - new Date(a.timestamp || a.id.split('e')[1]));
   
   tbody.innerHTML = '';
   
@@ -1408,22 +1474,65 @@ function calculatePay(earnings, offlineEarnings, cash, toll, cng, petrol, others
 }
 
 function updateEntryCalculations() {
-  const form = document.getElementById('entryForm');
-  const earnings = parseFloat(form.earnings.value) || 0;
-  const offlineEarnings = parseFloat(form.offlineEarnings.value) || 0;
-  const hours = form.hours.value;
-  
-  const totalEarnings = earnings + offlineEarnings;
-  const pay = calculatePay(totalEarnings, hours);
-  
-  document.getElementById('payPercent').innerText = pay.percent;
-  document.getElementById('salary').innerText = formatCurrency(pay.salary);
-  document.getElementById('payable').innerText = formatCurrency(pay.payable);
-  document.getElementById('commission').innerText = formatCurrency(pay.commission);
-  
-  if (isAdmin()) {
-    const pl = (totalEarnings - pay.salary).toFixed(2);
-    document.getElementById('pl').innerText = formatCurrency(pl);
+  try {
+    const form = document.getElementById('entryForm');
+    if (!form) return;
+
+    const formData = new FormData(form);
+    const f = Object.fromEntries(formData.entries());
+    
+    // Calculate total earnings (Earnings + Offline earnings)
+    const totalEarnings = (+f.earnings || 0) + (+f.offlineEarnings || 0);
+    const hours = parseFloat(f.hours) || 0;
+    
+    // Calculate Pay% based on earnings slab
+    let pay = 0;
+    if (totalEarnings >= 7000) pay = 38;
+    else if (totalEarnings >= 6000) pay = 38;
+    else if (totalEarnings >= 5000) pay = 34;
+    else if (totalEarnings >= 4000) pay = 32;
+    else if (totalEarnings >= 3000) pay = 30;
+    else if (totalEarnings >= 2000) pay = 23;
+    else if (totalEarnings >= 1000) pay = 10;
+    else pay = 0;
+    
+    // Hours check with decimal support
+    if (hours < 9) {
+      pay = Math.max(0, pay - 10);
+    } else if (hours < 11) {
+      pay = Math.max(0, pay - 5);
+    }
+    
+    const salary = Math.round(totalEarnings * pay / 100);
+    const roomRent = roomAllocations[f.driver] ? 50 : 0;
+    const payable = Math.round(
+      (+f.cash || 0) + 
+      (+f.offlineCash || 0) - 
+      salary - 
+      (+f.cng || 0) - 
+      (+f.petrol || 0) - 
+      (+f.other || 0) + 
+      (+f.ob || 0) + 
+      roomRent
+    );
+    
+    // Update UI elements if they exist
+    const payPercentElement = document.getElementById('payPercent');
+    const salaryElement = document.getElementById('salary');
+    const payableElement = document.getElementById('payable');
+    const commissionElement = document.getElementById('commission');
+    
+    if (payPercentElement) payPercentElement.textContent = pay;
+    if (salaryElement) salaryElement.textContent = formatCurrency(salary);
+    if (payableElement) payableElement.textContent = formatCurrency(payable);
+    if (commissionElement) commissionElement.textContent = formatCurrency(totalEarnings - salary);
+    
+    // Update room rent field if it exists
+    const roomRentInput = form.querySelector('input[name="roomRent"]');
+    if (roomRentInput) roomRentInput.value = roomRent;
+    
+  } catch (error) {
+    console.error('Error updating calculations:', error);
   }
 }
 
