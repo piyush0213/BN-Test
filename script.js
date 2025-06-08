@@ -64,11 +64,6 @@ function updateDropdowns() {
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
-  // Initialize UI
-  updateDropdowns();
-  renderSetup();
-  renderDatabase();
-  
   // Add event listeners
   const form = document.getElementById('entryForm');
   if (form) {

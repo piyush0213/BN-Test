@@ -25,6 +25,11 @@ function checkAuth() {
       filterDriver.disabled = true;
     }
   }
+
+  // Initialize UI components AFTER successful authentication
+  updateDropdowns();
+  renderSetup();
+  renderDatabase();
 }
 
 // Logout function
@@ -51,7 +56,7 @@ function isAdmin() {
 // Filter entries based on user role
 function filterEntriesByRole(entries) {
   const currentUser = JSON.parse(localStorage.getItem('currentUser'));
-  if (currentUser.role === 'driver') {
+  if (currentUser && currentUser.role === 'driver') {
     return entries.filter(e => e.driver === currentUser.username);
   }
   return entries;
@@ -60,7 +65,7 @@ function filterEntriesByRole(entries) {
 // Update dropdowns based on role
 function updateDropdownsByRole() {
   const currentUser = JSON.parse(localStorage.getItem('currentUser'));
-  if (currentUser.role === 'driver') {
+  if (currentUser && currentUser.role === 'driver') {
     // For drivers, only show their vehicle
     const assignments = JSON.parse(localStorage.getItem('assignments') || '{}');
     const vehicle = assignments[currentUser.username];
