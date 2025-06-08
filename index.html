@@ -39,7 +39,7 @@
             <label>Date <input type="date" name="date" required></label>
             <label>Driver <input list="driversList" name="driver" required oninput="autoFillVehicle(this.value)"></label>
             <datalist id="driversList"></datalist>
-            <label>Vehicle <input type="text" name="vehicle" id="vehicleInput" required></label>
+            <label>Vehicle <select name="vehicle" id="vehicleInput" required></select></label>
           </div>
 
           <!-- Row 2 -->
@@ -167,9 +167,25 @@
     <section id="setup" class="tab admin-only">
       <div class="setup-tabs">
         <button onclick="showSetupTab('driverDetails')" class="active">Driver Details</button>
+        <button onclick="showSetupTab('vehicleManagement')">Vehicle Management</button>
         <button onclick="showSetupTab('vehicleAssignment')">Vehicle Assignment</button>
         <button onclick="showSetupTab('roomAllocation')">Room Allocation</button>
         <button onclick="showSetupTab('pinManagement')">PIN Management</button>
+      </div>
+
+      <!-- Vehicle Management Tab -->
+      <div id="vehicleManagement" class="setup-content">
+        <div class="vehicle-list">
+          <select id="vehicleSelect" onchange="showVehicleDetails()">
+            <option value="">Select Vehicle</option>
+          </select>
+          <button onclick="editVehicle()" class="edit-btn">Edit</button>
+          <button onclick="deleteVehicle()" class="delete-btn">Delete</button>
+          <button onclick="addNewVehicle()" class="add-btn">Add New</button>
+        </div>
+        <div id="vehicleDetails" class="vehicle-details">
+          <!-- Vehicle details will be loaded here -->
+        </div>
       </div>
 
       <!-- Driver Details Tab -->
@@ -392,6 +408,43 @@
         </div>
       </div>
     </section>
+  </div>
+
+  <!-- Add Vehicle Modal -->
+  <div id="vehicleModal" class="modal">
+    <div class="modal-content">
+      <h2>Vehicle Details</h2>
+      <form id="vehicleForm" onsubmit="return handleVehicleSubmit(event)">
+        <div class="form-group">
+          <label for="vehicleName">Vehicle Name</label>
+          <input type="text" id="vehicleName" required>
+        </div>
+        <div class="form-group">
+          <label for="vehicleNumber">Vehicle Number</label>
+          <input type="text" id="vehicleNumber" required>
+        </div>
+        <div class="form-group">
+          <label for="vehicleType">Vehicle Type</label>
+          <select id="vehicleType" required>
+            <option value="sedan">Sedan</option>
+            <option value="suv">SUV</option>
+            <option value="hatchback">Hatchback</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="vehicleStatus">Status</label>
+          <select id="vehicleStatus" required>
+            <option value="active">Active</option>
+            <option value="maintenance">Maintenance</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+        <div class="actions">
+          <button type="submit" class="submit-button">Save</button>
+          <button type="button" class="cancel-button" onclick="closeVehicleModal()">Cancel</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <script src="script.js"></script>

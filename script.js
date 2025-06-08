@@ -4,6 +4,15 @@ let assignments = JSON.parse(localStorage.getItem('assignments') || '{}');
 let entries = JSON.parse(localStorage.getItem('entries') || '[]');
 let roomAllocations = JSON.parse(localStorage.getItem('roomAllocations') || '{}');
 
+// Initialize default data if not exists
+if (!localStorage.getItem('driverProfiles')) {
+  localStorage.setItem('driverProfiles', JSON.stringify([]));
+}
+
+if (!localStorage.getItem('vehicles')) {
+  localStorage.setItem('vehicles', JSON.stringify([]));
+}
+
 function showTab(id) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -15,26 +24,36 @@ function showTab(id) {
 }
 
 function updateDropdowns() {
-  const driverOptions = drivers.map(d => `<option value="${d}">${d}</option>`).join('');
-  const vehicleOptions = vehicles.map(v => `<option value="${v}">${v}</option>`).join('');
-
-  ['driversList', 'filterDriver', 'assignDriver', 'roomDriver', 'pinDriver', 'driverSelect'].forEach(id => {
-    const element = document.getElementById(id);
-    if (element) {
-      if (id === 'driversList') {
-        element.innerHTML = drivers.map(d => `<option value="${d}">`).join('');
-      } else {
-        element.innerHTML = `<option value="">Select Driver</option>${driverOptions}`;
-      }
+  const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
+  const vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
+  
+  // Update driver datalist
+  const driversList = document.getElementById('driversList');
+  if (driversList) {
+    driversList.innerHTML = '';
+    if (Array.isArray(driverProfiles)) {
+      driverProfiles.forEach(driver => {
+        const option = document.createElement('option');
+        option.value = driver.name;
+        option.dataset.id = driver.id;
+        driversList.appendChild(option);
+      });
     }
-  });
-
-  ['filterVehicle', 'assignVehicle', 'weeklyVehicle'].forEach(id => {
-    const element = document.getElementById(id);
-    if (element) {
-      element.innerHTML = `<option value="">All Vehicles</option>${vehicleOptions}`;
+  }
+  
+  // Update vehicle select
+  const vehicleSelect = document.getElementById('vehicleInput');
+  if (vehicleSelect) {
+    vehicleSelect.innerHTML = '<option value="">Select Vehicle</option>';
+    if (Array.isArray(vehicles)) {
+      vehicles.forEach(vehicle => {
+        const option = document.createElement('option');
+        option.value = vehicle.id;
+        option.textContent = `${vehicle.name} (${vehicle.number})`;
+        vehicleSelect.appendChild(option);
+      });
     }
-  });
+  }
 }
 
 function addDriver() {
@@ -82,9 +101,19 @@ function assignDriverVehicle() {
   alert(`Vehicle ${vehicle} assigned to ${driver}`);
 }
 
-function autoFillVehicle(driver) {
-  const veh = assignments[driver];
-  if (veh) document.getElementById('vehicleInput').value = veh;
+function autoFillVehicle(driverName) {
+  const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
+  const vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
+  const assignments = JSON.parse(localStorage.getItem('assignments') || '{}');
+  
+  const driver = Array.isArray(driverProfiles) ? driverProfiles.find(d => d.name === driverName) : null;
+  if (!driver) return;
+  
+  const vehicleId = assignments[driver.id];
+  if (vehicleId) {
+    const vehicleSelect = document.getElementById('vehicleInput');
+    vehicleSelect.value = vehicleId;
+  }
 }
 
 function renderSetup() {
@@ -240,207 +269,271 @@ document.getElementById('entryForm').addEventListener('input', () => {
   document.querySelector('input[name="roomRent"]').value = roomRent;
 });
 
-document.getElementById('entryForm').addEventListener('submit', e => {
-  e.preventDefault();
+document.getElementById('entryForm').addEventListener('submit', function(event) {
+  event.preventDefault();
   
   try {
-    const form = e.target;
-    const formData = new FormData(form);
-    const f = Object.fromEntries(formData.entries());
+    const formData = new FormData(this);
+    const entry = Object.fromEntries(formData.entries());
     
-    // Validate required fields
-    if (!f.date || !f.driver || !f.vehicle) {
-      alert('Please fill in all required fields (Date, Driver, Vehicle)');
-      return;
-    }
-
-    // Calculate values using the same logic as above
-    const totalEarnings = (+f.earnings || 0) + (+f.offlineEarnings || 0);
-    const hours = parseFloat(f.hours) || 0; // Use parseFloat for hours
+    // Get driver and vehicle IDs
+    const driverName = entry.driver;
+    const vehicleId = entry.vehicle;
     
-    let pay = 0;
-    if (totalEarnings >= 7000) pay = 38;
-    else if (totalEarnings >= 6000) pay = 34;
-    else if (totalEarnings >= 5000) pay = 32;
-    else if (totalEarnings >= 4000) pay = 30;
-    else if (totalEarnings >= 2500) pay = 25;
-    else if (totalEarnings >= 1800) pay = 20;
-    else pay = 0;
-
-    // Hours check with decimal support
-    if (hours < 9) {
-      pay = Math.max(0, pay - 10);
-    } else if (hours < 11) {
-      pay = Math.max(0, pay - 5);
-    }
-
-    const salary = Math.round(totalEarnings * pay / 100);
-    const roomRent = roomAllocations[f.driver] ? 50 : 0;
-    const payable = Math.round(
-      (+f.cash || 0) + 
-      (+f.offlineCash || 0) - 
-      salary - 
-      (+f.cng || 0) - 
-      (+f.petrol || 0) - 
-      (+f.other || 0) + 
-      (+f.ob || 0) + 
-      roomRent
-    );
-    const commission = Math.round((+f.cash || 0) - (+f.earnings || 0));
-    const pl = Math.round(
-      totalEarnings - 
-      salary - 
-      (+f.cng || 0) - 
-      (+f.toll || 0) - 
-      (+f.petrol || 0) - 
-      (+f.other || 0) - 
-      1080
-    );
-
-    // Create entry object with calculated values
-    const entry = {
-      date: f.date,
-      driver: f.driver,
-      vehicle: f.vehicle,
-      earnings: +f.earnings || 0,
-      cash: +f.cash || 0,
-      offlineEarnings: +f.offlineEarnings || 0,
-      offlineCash: +f.offlineCash || 0,
-      trips: +f.trips || 0,
-      toll: +f.toll || 0,
-      hours: hours,
-      cng: +f.cng || 0,
-      petrol: +f.petrol || 0,
-      other: +f.other || 0,
-      ob: +f.ob || 0,
-      roomRent: roomRent,
-      salary: salary,
-      payable: payable,
-      commission: commission,
-      payPercent: pay,
-      pl: pl
-    };
-
-    // Get existing entries
-    let entries = JSON.parse(localStorage.getItem('entries') || '[]');
-
-    // Check if entry already exists for this date and driver
-    const existingIndex = entries.findIndex(x => x.date === entry.date && x.driver === entry.driver);
+    const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
+    const vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
     
-    if (existingIndex >= 0) {
-      // Update existing entry
-      if (confirm('An entry already exists for this date and driver. Do you want to update it?')) {
-        entries[existingIndex] = entry;
-      } else {
-        return;
-      }
-    } else {
-      // Add new entry
-      entries.push(entry);
+    // Find driver ID
+    const driver = Array.isArray(driverProfiles) ? driverProfiles.find(d => d.name === driverName) : null;
+    if (!driver) {
+      throw new Error('Driver not found. Please select a valid driver.');
     }
-
-    // Save to localStorage
+    
+    // Verify vehicle exists
+    const vehicle = vehicles.find(v => v.id === vehicleId);
+    if (!vehicle) {
+      throw new Error('Vehicle not found. Please select a valid vehicle.');
+    }
+    
+    // Add entry data
+    entry.id = 'e' + Date.now();
+    entry.timestamp = new Date().toISOString();
+    entry.driver = driver.id;
+    entry.vehicle = vehicle.id;
+    
+    // Calculate total earnings
+    entry.totalEarnings = (parseFloat(entry.earnings) || 0) + (parseFloat(entry.offlineEarnings) || 0);
+    
+    // Get existing entries and save
+    const entries = JSON.parse(localStorage.getItem('entries') || '[]');
+    entries.push(entry);
     localStorage.setItem('entries', JSON.stringify(entries));
     
-    // Reset form
-    form.reset();
-    
-    // Update UI
+    // Reset form and update UI
+    this.reset();
+    updateEntryCalculations();
     renderDatabase();
-    renderSummary();
     
-    // Show success message
+    // Update summary if on summary tab
+    if (document.getElementById('summary').classList.contains('active')) {
+      renderSummary();
+    }
+    
     alert('Entry saved successfully!');
-    
   } catch (error) {
     console.error('Error saving entry:', error);
-    alert('Error saving entry. Please try again.');
+    alert(error.message || 'Error saving entry. Please try again.');
   }
 });
 
 function renderDatabase() {
+  const entries = JSON.parse(localStorage.getItem('entries') || '[]');
+  const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
+  const vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
   const tbody = document.getElementById('dataBody');
+  
+  // Filter entries based on role
+  const filteredEntries = filterEntriesByRole(entries);
+  
+  // Apply any active filters
+  const filteredData = filterEntries(filteredEntries);
+  
   tbody.innerHTML = '';
-  const from = new Date(document.getElementById('filterFrom').value);
-  const to = new Date(document.getElementById('filterTo').value);
-  const fDriver = document.getElementById('filterDriver').value;
-  const fVehicle = document.getElementById('filterVehicle').value;
-
-  let filteredEntries = filterEntriesByRole(entries);
-  filteredEntries = filteredEntries.filter(e => {
-    const d = new Date(e.date);
-    return (!isNaN(from) ? d >= from : true) &&
-           (!isNaN(to) ? d <= to : true) &&
-           (!fDriver || e.driver === fDriver) &&
-           (!fVehicle || e.vehicle === fVehicle);
-  }).sort((a, b) => new Date(b.date) - new Date(a.date));
-
-  for (const e of filteredEntries) {
-    const tr = tbody.insertRow();
-    const fields = [
-      "date", "driver", "vehicle", "earnings", "cash", "offlineEarnings",
-      "offlineCash", "trips", "toll", "hours", "salary", "cng", "petrol",
-      "other", "ob", "roomRent", "payable"
-    ];
+  
+  filteredData.forEach(entry => {
+    const driver = driverProfiles.find(d => d.id === entry.driver) || { name: 'Unknown Driver' };
+    const vehicle = vehicles.find(v => v.id === entry.vehicle) || { name: 'Unknown Vehicle', number: 'N/A' };
     
-    if (isAdmin()) fields.push("pl");
+    // Calculate P&L for admin
+    let pnlCell = '';
+    if (isAdmin()) {
+      const earnings = parseFloat(entry.earnings) || 0;
+      const offlineEarnings = parseFloat(entry.offlineEarnings) || 0;
+      const totalEarnings = earnings + offlineEarnings;
+      const salary = parseFloat(entry.salary) || 0;
+      const cng = parseFloat(entry.cng) || 0;
+      const toll = parseFloat(entry.toll) || 0;
+      const petrol = parseFloat(entry.petrol) || 0;
+      const other = parseFloat(entry.other) || 0;
+      const pnl = totalEarnings - salary - cng - toll - petrol - other - 1080; // 1080 is fixed cost
+      pnlCell = `<td class="admin-only">${formatCurrency(pnl)}</td>`;
+    }
     
-    for (const field of fields) {
-      const cell = tr.insertCell();
-      const span = document.createElement("span");
-      let value = e[field];
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${entry.date}</td>
+      <td>${driver.name}</td>
+      <td>${vehicle.name} (${vehicle.number})</td>
+      <td>${formatCurrency(entry.earnings)}</td>
+      <td>${formatCurrency(entry.cash)}</td>
+      <td>${formatCurrency(entry.offlineEarnings)}</td>
+      <td>${formatCurrency(entry.offlineCash)}</td>
+      <td>${entry.trips}</td>
+      <td>${formatCurrency(entry.toll)}</td>
+      <td>${entry.hours}</td>
+      <td>${formatCurrency(entry.salary)}</td>
+      <td>${formatCurrency(entry.cng)}</td>
+      <td>${formatCurrency(entry.petrol)}</td>
+      <td>${formatCurrency(entry.other)}</td>
+      <td>${formatCurrency(entry.ob)}</td>
+      <td>${formatCurrency(entry.roomRent)}</td>
+      <td>${formatCurrency(entry.payable)}</td>
+      ${pnlCell}
+      <td class="action-buttons">
+        <button onclick="shareEntry('${entry.id}')" class="share">Share</button>
+        ${isAdmin() ? `<button onclick="deleteEntry('${entry.id}')" class="delete">Delete</button>` : ''}
+      </td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function filterEntries(entries) {
+  const fromDate = document.getElementById('filterFrom').value;
+  const toDate = document.getElementById('filterTo').value;
+  const driverId = document.getElementById('filterDriver').value;
+  const vehicleId = document.getElementById('filterVehicle').value;
+  
+  return entries.filter(entry => {
+    const entryDate = new Date(entry.date);
+    const from = fromDate ? new Date(fromDate) : null;
+    const to = toDate ? new Date(toDate) : null;
+    
+    const dateMatch = (!from || entryDate >= from) && (!to || entryDate <= to);
+    const driverMatch = !driverId || entry.driver === driverId;
+    const vehicleMatch = !vehicleId || entry.vehicle === vehicleId;
+    
+    return dateMatch && driverMatch && vehicleMatch;
+  });
+}
+
+function deleteEntry(entryId) {
+  if (!confirm('Are you sure you want to delete this entry?')) {
+    return;
+  }
+  
+  try {
+    const entries = JSON.parse(localStorage.getItem('entries') || '[]');
+    const updatedEntries = entries.filter(entry => entry.id !== entryId);
+    
+    if (updatedEntries.length === entries.length) {
+      throw new Error('Entry not found');
+    }
+    
+    localStorage.setItem('entries', JSON.stringify(updatedEntries));
+    renderDatabase();
+    
+    // Update summary if on summary tab
+    if (document.getElementById('summary').classList.contains('active')) {
+      renderSummary();
+    }
+    
+    alert('Entry deleted successfully!');
+  } catch (error) {
+    console.error('Error deleting entry:', error);
+    alert('Error deleting entry. Please try again.');
+  }
+}
+
+function importExcel(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet);
       
-      // Special handling for hours field to show 2 decimal places
-      if (field === "hours") {
-        value = Number(value).toFixed(2);
-      } else if (typeof value === 'number') {
-        // Round other numbers to integers
-        value = Math.round(value);
+      // Get existing entries and profiles
+      const existingEntries = JSON.parse(localStorage.getItem('entries') || '[]');
+      const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
+      const vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
+      
+      if (!Array.isArray(driverProfiles)) {
+        throw new Error('Driver profiles data is not in correct format. Please add drivers first.');
       }
       
-      span.textContent = value;
-      cell.appendChild(span);
-    }
-
-    // Add action buttons
-    const actionCell = tr.insertCell();
-    const actionDiv = document.createElement("div");
-    actionDiv.className = "action-buttons";
-    
-    const editBtn = document.createElement("button");
-    editBtn.className = "edit";
-    editBtn.innerHTML = "✏️";
-    editBtn.title = "Edit Entry";
-    editBtn.onclick = () => {
-      const form = document.getElementById('entryForm');
-      Object.keys(e).forEach(key => {
-        const input = form.elements[key];
-        if (input) {
-          // Keep original values for form, including decimal hours
-          input.value = e[key];
+      if (!Array.isArray(vehicles)) {
+        throw new Error('Vehicles data is not in correct format. Please add vehicles first.');
+      }
+      
+      if (driverProfiles.length === 0) {
+        throw new Error('No drivers found. Please add drivers first.');
+      }
+      
+      if (vehicles.length === 0) {
+        throw new Error('No vehicles found. Please add vehicles first.');
+      }
+      
+      // Process and validate each row
+      const newEntries = jsonData.map(row => {
+        // Generate unique ID for new entry
+        const id = 'e' + Date.now() + Math.random().toString(36).substr(2, 9);
+        
+        // Convert date string to proper format
+        let date = row.Date;
+        if (typeof date === 'string') {
+          const parts = date.split('/');
+          if (parts.length === 3) {
+            date = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          }
         }
+        
+        // Find driver and vehicle IDs
+        const driver = driverProfiles.find(d => d.name === row.Driver);
+        const vehicle = vehicles.find(v => v.name === row.Vehicle);
+        
+        if (!driver) {
+          throw new Error(`Driver not found: ${row.Driver}. Please add this driver first.`);
+        }
+        
+        if (!vehicle) {
+          throw new Error(`Vehicle not found: ${row.Vehicle}. Please add this vehicle first.`);
+        }
+        
+        // Convert all numeric values to proper format
+        return {
+          id,
+          date,
+          driver: driver.id,
+          vehicle: vehicle.id,
+          earnings: parseFloat(row.Earnings) || 0,
+          cash: parseFloat(row.Cash) || 0,
+          offlineEarnings: parseFloat(row['Offline Earnings']) || 0,
+          offlineCash: parseFloat(row['Offline Cash']) || 0,
+          trips: parseInt(row.Trips) || 0,
+          toll: parseFloat(row.Toll) || 0,
+          hours: parseFloat(row['Login Hours']) || 0,
+          cng: parseFloat(row.CNG) || 0,
+          petrol: parseFloat(row.Petrol) || 0,
+          other: parseFloat(row['Other Expenses']) || 0,
+          ob: parseFloat(row['Opening Balance']) || 0,
+          roomRent: parseFloat(row['Room Rent']) || 0,
+          timestamp: new Date().toISOString()
+        };
       });
-      showTab('entry');
-      form.scrollIntoView({ behavior: 'smooth' });
-    };
-    
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className = "delete";
-    deleteBtn.innerHTML = "❌";
-    deleteBtn.title = "Delete Entry";
-    deleteBtn.onclick = () => {
-      if (confirm("Are you sure you want to delete this entry?")) {
-        entries = entries.filter(x => !(x.date === e.date && x.driver === e.driver));
-        localStorage.setItem('entries', JSON.stringify(entries));
-        renderDatabase();
+      
+      // Combine and save entries
+      const updatedEntries = [...existingEntries, ...newEntries];
+      localStorage.setItem('entries', JSON.stringify(updatedEntries));
+      
+      // Update UI
+      renderDatabase();
+      if (document.getElementById('summary').classList.contains('active')) {
         renderSummary();
       }
-    };
-    
-    actionDiv.appendChild(editBtn);
-    actionDiv.appendChild(deleteBtn);
-    actionCell.appendChild(actionDiv);
-  }
+      
+      alert(`Successfully imported ${newEntries.length} entries!`);
+    } catch (error) {
+      console.error('Error importing Excel:', error);
+      alert(`Error importing Excel file: ${error.message}`);
+    }
+  };
+  
+  reader.readAsArrayBuffer(file);
 }
 
 function filterDatabase() {
@@ -727,85 +820,148 @@ function updateWeeklyPayable(input) {
 }
 
 function renderSummary() {
-  const driverData = {};
-  entries.forEach(e => {
-    if (!driverData[e.driver]) {
-      driverData[e.driver] = { trips: 0, earnings: 0 };
+  const entries = JSON.parse(localStorage.getItem('entries') || '[]');
+  const drivers = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
+  
+  if (entries.length === 0) {
+    document.getElementById('earningsChart').style.display = 'none';
+    document.getElementById('weeklyTrendsChart').style.display = 'none';
+    return;
+  }
+  
+  // Show charts
+  document.getElementById('earningsChart').style.display = 'block';
+  document.getElementById('weeklyTrendsChart').style.display = 'block';
+  
+  // Prepare data for charts
+  const driverEarnings = {};
+  const weeklyData = {};
+  
+  entries.forEach(entry => {
+    const date = new Date(entry.date);
+    const weekStart = new Date(date);
+    weekStart.setDate(date.getDate() - date.getDay());
+    const weekKey = weekStart.toISOString().split('T')[0];
+    
+    // Driver earnings
+    if (!driverEarnings[entry.driver]) {
+      driverEarnings[entry.driver] = 0;
     }
-    driverData[e.driver].trips += +e.trips;
-    driverData[e.driver].earnings += +e.earnings;
+    driverEarnings[entry.driver] += parseFloat(entry.totalEarnings) || 0;
+    
+    // Weekly data
+    if (!weeklyData[weekKey]) {
+      weeklyData[weekKey] = {
+        earnings: 0,
+        trips: 0
+      };
+    }
+    weeklyData[weekKey].earnings += parseFloat(entry.totalEarnings) || 0;
+    weeklyData[weekKey].trips += parseInt(entry.trips) || 0;
   });
-
-  new Chart(document.getElementById('driverTripsChart'), {
+  
+  // Sort weekly data by date
+  const sortedWeeks = Object.keys(weeklyData).sort();
+  
+  // Destroy existing charts if they exist
+  if (typeof window.earningsChart !== 'undefined' && window.earningsChart instanceof Chart) {
+    window.earningsChart.destroy();
+  }
+  if (typeof window.trendsChart !== 'undefined' && window.trendsChart instanceof Chart) {
+    window.trendsChart.destroy();
+  }
+  
+  // Render Earnings by Driver Chart
+  const earningsCtx = document.getElementById('earningsChart').getContext('2d');
+  window.earningsChart = new Chart(earningsCtx, {
     type: 'bar',
     data: {
-      labels: Object.keys(driverData),
+      labels: Object.keys(driverEarnings).map(driverId => {
+        const driver = drivers.find(d => d.id === driverId);
+        return driver ? driver.name : 'Unknown Driver';
+      }),
       datasets: [{
-        label: 'Trips',
-        data: Object.values(driverData).map(d => d.trips),
-        backgroundColor: '#2196f3'
+        label: 'Total Earnings',
+        data: Object.values(driverEarnings),
+        backgroundColor: 'rgba(25, 118, 210, 0.8)',
+        borderColor: 'rgba(25, 118, 210, 1)',
+        borderWidth: 1
       }]
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } }
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: value => '₹' + formatNumber(value)
+          }
+        }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: context => '₹' + formatNumber(context.raw)
+          }
+        }
+      }
     }
   });
-
-  new Chart(document.getElementById('driverEarningsChart'), {
-    type: 'bar',
+  
+  // Render Weekly Trends Chart
+  const trendsCtx = document.getElementById('weeklyTrendsChart').getContext('2d');
+  window.trendsChart = new Chart(trendsCtx, {
+    type: 'line',
     data: {
-      labels: Object.keys(driverData),
+      labels: sortedWeeks.map(week => new Date(week).toLocaleDateString()),
       datasets: [{
-        label: 'Earnings',
-        data: Object.values(driverData).map(d => d.earnings),
-        backgroundColor: '#4caf50'
+        label: 'Weekly Earnings',
+        data: sortedWeeks.map(week => weeklyData[week].earnings),
+        borderColor: 'rgba(76, 175, 80, 1)',
+        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+        fill: true,
+        tension: 0.4
+      }, {
+        label: 'Weekly Trips',
+        data: sortedWeeks.map(week => weeklyData[week].trips),
+        borderColor: 'rgba(255, 152, 0, 1)',
+        backgroundColor: 'rgba(255, 152, 0, 0.1)',
+        fill: true,
+        tension: 0.4,
+        yAxisID: 'trips'
       }]
     },
     options: {
       responsive: true,
-      plugins: { legend: { display: false } }
-    }
-  });
-
-  const vehicleData = {};
-  entries.forEach(e => {
-    if (!vehicleData[e.vehicle]) {
-      vehicleData[e.vehicle] = { trips: 0, earnings: 0 };
-    }
-    vehicleData[e.vehicle].trips += +e.trips;
-    vehicleData[e.vehicle].earnings += +e.earnings;
-  });
-
-  new Chart(document.getElementById('vehicleTripsChart'), {
-    type: 'bar',
-    data: {
-      labels: Object.keys(vehicleData),
-      datasets: [{
-        label: 'Trips',
-        data: Object.values(vehicleData).map(d => d.trips),
-        backgroundColor: '#2196f3'
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false } }
-    }
-  });
-
-  new Chart(document.getElementById('vehicleEarningsChart'), {
-    type: 'bar',
-    data: {
-      labels: Object.keys(vehicleData),
-      datasets: [{
-        label: 'Earnings',
-        data: Object.values(vehicleData).map(d => d.earnings),
-        backgroundColor: '#4caf50'
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { display: false } }
+      maintainAspectRatio: false,
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: value => '₹' + formatNumber(value)
+          }
+        },
+        trips: {
+          position: 'right',
+          beginAtZero: true,
+          grid: {
+            drawOnChartArea: false
+          }
+        }
+      },
+      plugins: {
+        tooltip: {
+          callbacks: {
+            label: context => {
+              if (context.dataset.label === 'Weekly Earnings') {
+                return '₹' + formatNumber(context.raw);
+              }
+              return context.raw + ' trips';
+            }
+          }
+        }
+      }
     }
   });
 }
@@ -826,113 +982,29 @@ function toggleRoomAllocation() {
 
 function setDriverPin() {
   const driver = document.getElementById('pinDriver').value;
-  const pin = document.getElementById('newPin').value;
-  if (!driver || !pin || pin.length !== 6) return;
-
+  const pin = document.getElementById('driverPin').value;
+  
+  if (!driver || !pin || pin.length !== 6) {
+    alert('Please select a driver and enter a 6-digit PIN');
+    return;
+  }
+  
   const driverPins = JSON.parse(localStorage.getItem('driverPins') || '{}');
   driverPins[driver] = pin;
   localStorage.setItem('driverPins', JSON.stringify(driverPins));
   
-  document.getElementById('newPin').value = '';
-  renderSetup();
+  alert('PIN set successfully');
+  document.getElementById('driverPin').value = '';
+  renderPINList();
 }
 
 function resetDriverPin(driver) {
-  if (!confirm(`Reset PIN for ${driver}?`)) return;
-  
-  const driverPins = JSON.parse(localStorage.getItem('driverPins') || '{}');
-  driverPins[driver] = '123456';
-  localStorage.setItem('driverPins', JSON.stringify(driverPins));
-  renderSetup();
-}
-
-function importExcel(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-      const headers = rows[0];
-      const requiredHeaders = ["Date", "Driver", "Vehicle", "Earnings", "Cash Collection"];
-      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-      if (missingHeaders.length > 0) {
-        alert(`Missing required columns: ${missingHeaders.join(', ')}`);
-        return;
-      }
-
-      const newEntries = [];
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (row.length < headers.length) continue;
-
-        const entry = {};
-        headers.forEach((h, j) => {
-          let value = row[j];
-          if (h === 'Date') {
-            if (typeof value === 'number') {
-              const date = new Date((value - 25569) * 86400 * 1000);
-              value = date.toISOString().slice(0,10);
-            }
-          } else if (typeof value === 'number') {
-            value = Math.round(value * 100) / 100;
-          }
-          entry[h.toLowerCase().replace(/\s+/g, '')] = value;
-        });
-
-        if (entry.date && entry.driver && entry.vehicle) {
-          // Calculate dependent fields
-          const totalEarnings = (+entry.earnings || 0) + (+entry.offlineearnings || 0);
-          const hours = parseFloat(entry.loginhours) || 0;
-          
-          let pay = 0;
-          if (totalEarnings >= 7000) pay = 38;
-          else if (totalEarnings >= 6000) pay = 34;
-          else if (totalEarnings >= 5000) pay = 32;
-          else if (totalEarnings >= 4000) pay = 30;
-          else if (totalEarnings >= 2500) pay = 25;
-          else if (totalEarnings >= 1800) pay = 20;
-
-          if (hours < 9) pay = Math.max(0, pay - 10);
-          else if (hours < 11) pay = Math.max(0, pay - 5);
-
-          entry.salary = totalEarnings * pay / 100;
-          entry.payable = (+entry.cashcollection || 0) + (+entry.offlinecash || 0) - 
-                         entry.salary - (+entry.cng || 0) - (+entry.petrol || 0) - 
-                         (+entry.otherexpenses || 0) + (+entry.openingbalance || 0) + 
-                         (+entry.roomrent || 0);
-          entry.pl = totalEarnings - entry.salary - (+entry.cng || 0) - 
-                    (+entry.toll || 0) - (+entry.petrol || 0) - 
-                    (+entry.otherexpenses || 0) - 1080;
-          
-          newEntries.push(entry);
-        }
-      }
-
-      entries = [...entries, ...newEntries];
-      localStorage.setItem('entries', JSON.stringify(entries));
-      renderDatabase();
-      renderSummary();
-      alert(`Imported ${newEntries.length} entries successfully`);
-    } catch (error) {
-      console.error('Error importing Excel:', error);
-      alert('Error importing Excel file. Please check the file format and try again.');
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-function clearFilters() {
-  document.getElementById('filterFrom').value = '';
-  document.getElementById('filterTo').value = '';
-  document.getElementById('filterDriver').value = '';
-  document.getElementById('filterVehicle').value = '';
-  renderDatabase();
+  if (confirm('Are you sure you want to reset the PIN for this driver?')) {
+    const driverPins = JSON.parse(localStorage.getItem('driverPins') || '{}');
+    delete driverPins[driver];
+    localStorage.setItem('driverPins', JSON.stringify(driverPins));
+    renderPINList();
+  }
 }
 
 function showSetupTab(tabId) {
@@ -943,11 +1015,11 @@ function showSetupTab(tabId) {
 }
 
 function showDriverDetails() {
-  const driver = document.getElementById('driverSelect').value;
-  if (!driver) return;
+  const driverId = document.getElementById('driverSelect').value;
+  if (!driverId) return;
 
-  const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '{}');
-  const profile = driverProfiles[driver];
+  const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
+  const profile = driverProfiles.find(d => d.id === driverId);
   const profileDiv = document.getElementById('driverProfile');
 
   if (profile) {
@@ -999,8 +1071,8 @@ function editDriverProfile() {
     return;
   }
 
-  const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '{}');
-  const profile = driverProfiles[driver];
+  const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
+  const profile = driverProfiles.find(d => d.id === driver);
   
   if (!profile) {
     alert('No profile found for this driver');
@@ -1013,37 +1085,36 @@ function editDriverProfile() {
 }
 
 function deleteDriverProfile() {
-  const driver = document.getElementById('driverSelect').value;
-  if (!driver) {
+  const driverId = document.getElementById('driverSelect').value;
+  if (!driverId) {
     alert('Please select a driver first');
     return;
   }
 
-  if (!confirm(`Are you sure you want to delete ${driver}'s profile? This will also remove their vehicle assignment and room allocation.`)) {
+  const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
+  const driver = driverProfiles.find(d => d.id === driverId);
+  
+  if (!driver) {
+    alert('No profile found for this driver');
     return;
   }
 
-  // Remove from drivers list
-  const drivers = JSON.parse(localStorage.getItem('drivers') || '[]');
-  const driverIndex = drivers.indexOf(driver);
-  if (driverIndex > -1) {
-    drivers.splice(driverIndex, 1);
-    localStorage.setItem('drivers', JSON.stringify(drivers));
+  if (!confirm(`Are you sure you want to delete ${driver.name}'s profile? This will also remove their vehicle assignment and room allocation.`)) {
+    return;
   }
 
   // Remove profile
-  const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '{}');
-  delete driverProfiles[driver];
-  localStorage.setItem('driverProfiles', JSON.stringify(driverProfiles));
+  const updatedProfiles = driverProfiles.filter(d => d.id !== driverId);
+  localStorage.setItem('driverProfiles', JSON.stringify(updatedProfiles));
 
   // Remove assignments
   const assignments = JSON.parse(localStorage.getItem('assignments') || '{}');
-  delete assignments[driver];
+  delete assignments[driverId];
   localStorage.setItem('assignments', JSON.stringify(assignments));
 
   // Remove room allocation
   const roomAllocations = JSON.parse(localStorage.getItem('roomAllocations') || '{}');
-  delete roomAllocations[driver];
+  delete roomAllocations[driverId];
   localStorage.setItem('roomAllocations', JSON.stringify(roomAllocations));
 
   // Update UI
@@ -1071,33 +1142,47 @@ function handleJoiningSubmit(event) {
   const form = event.target;
   const formData = new FormData(form);
   const data = Object.fromEntries(formData.entries());
-
-  // Validate mobile numbers
-  const mobilePattern = /^[0-9]{10}$/;
-  if (!mobilePattern.test(data.mobile1)) {
-    showJoiningError('Please enter a valid 10-digit mobile number');
+  
+  // Validate required fields
+  const requiredFields = ['name', 'fatherName', 'dob', 'mobile1', 'email', 'dlNumber', 'aadharNumber', 'panNumber', 'permanentAddress', 'presentAddress', 'reference1Name', 'reference1Relation', 'reference1Mobile', 'reference2Name', 'reference2Relation', 'reference2Mobile'];
+  const missingFields = requiredFields.filter(field => !data[field]);
+  
+  if (missingFields.length > 0) {
+    showJoiningError(`Please fill in all required fields: ${missingFields.join(', ')}`);
     return false;
   }
-
-  // Validate Aadhar number
-  const aadharPattern = /^[0-9]{12}$/;
-  if (!aadharPattern.test(data.aadharNumber)) {
-    showJoiningError('Please enter a valid 12-digit Aadhar number');
-    return false;
-  }
-
-  // Validate PAN number
-  const panPattern = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
-  if (!panPattern.test(data.panNumber)) {
-    showJoiningError('Please enter a valid PAN number');
-    return false;
-  }
-
+  
   try {
-    // Save to localStorage
-    const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '{}');
-    driverProfiles[data.name] = {
-      ...data,
+    // Generate unique ID for driver
+    const driverId = 'd' + Date.now() + Math.random().toString(36).substr(2, 9);
+    
+    // Get existing driver profiles and ensure it's an array
+    let driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
+    if (!Array.isArray(driverProfiles)) {
+      driverProfiles = [];
+    }
+    
+    // Add new driver profile
+    const newDriver = {
+      id: driverId,
+      name: data.name,
+      fatherName: data.fatherName,
+      dob: data.dob,
+      mobile1: data.mobile1,
+      mobile2: data.mobile2 || '',
+      email: data.email,
+      dlNumber: data.dlNumber,
+      aadharNumber: data.aadharNumber,
+      panNumber: data.panNumber,
+      passportNumber: data.passportNumber || '',
+      permanentAddress: data.permanentAddress,
+      presentAddress: data.presentAddress,
+      reference1Name: data.reference1Name,
+      reference1Relation: data.reference1Relation,
+      reference1Mobile: data.reference1Mobile,
+      reference2Name: data.reference2Name,
+      reference2Relation: data.reference2Relation,
+      reference2Mobile: data.reference2Mobile,
       joiningDate: new Date().toISOString().split('T')[0],
       documents: {
         dl: document.getElementById('dlStatus').textContent,
@@ -1106,26 +1191,23 @@ function handleJoiningSubmit(event) {
         photo: document.getElementById('photoStatus').textContent
       }
     };
+    
+    // Add to driver profiles array
+    driverProfiles.push(newDriver);
     localStorage.setItem('driverProfiles', JSON.stringify(driverProfiles));
-
-    // Add to drivers list if not exists
-    const drivers = JSON.parse(localStorage.getItem('drivers') || '[]');
-    if (!drivers.includes(data.name)) {
-      drivers.push(data.name);
-      localStorage.setItem('drivers', JSON.stringify(drivers));
-    }
-
+    
     // Reset form
     form.reset();
     document.querySelectorAll('.upload-status').forEach(status => {
       status.textContent = 'No file selected';
       status.style.color = '#666';
     });
-
+    
     // Show success message and switch to setup tab
     alert('Driver profile added successfully!');
     showTab('setup');
-    renderSetup(); // Refresh setup page to show new driver
+    renderSetup();
+    updateDropdowns();
     return false;
   } catch (error) {
     console.error('Error saving driver profile:', error);
@@ -1161,25 +1243,21 @@ function updateProfilePanel() {
 
 function renderPINList() {
   const pinList = document.getElementById('pinList');
-  const pins = JSON.parse(localStorage.getItem('driverPins') || '{}');
+  const driverPins = JSON.parse(localStorage.getItem('driverPins') || '{}');
   const drivers = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
-
-  pinList.innerHTML = '';
-  Object.entries(pins).forEach(([driverId, pin]) => {
-    const driver = drivers.find(d => d.id === driverId);
-    if (!driver) return;
-
-    const div = document.createElement('div');
-    div.className = 'pin-item';
-    div.innerHTML = `
-      <div>
-        <strong>${driver.name}</strong>
-        <div>PIN: ${pin}</div>
+  
+  pinList.innerHTML = drivers.map(driver => {
+    const hasPin = driverPins[driver.id] ? 'Yes' : 'No';
+    return `
+      <div class="pin-item">
+        <div>
+          <strong>${driver.name}</strong>
+          <span>PIN Set: ${hasPin}</span>
+        </div>
+        <button onclick="resetDriverPin('${driver.id}')">Reset PIN</button>
       </div>
-      <button onclick="removeDriverPIN('${driverId}')">Remove</button>
     `;
-    pinList.appendChild(div);
-  });
+  }).join('');
 }
 
 function renderSummaryCharts() {
@@ -1275,6 +1353,241 @@ function formatNumber(value) {
   return new Intl.NumberFormat('en-IN').format(value);
 }
 
+function calculatePay(earnings, offlineEarnings, cash, toll, cng, petrol, others, hours, oldBalance, roomRent) {
+  // Convert all inputs to numbers
+  const totalEarnings = (parseFloat(earnings) || 0) + (parseFloat(offlineEarnings) || 0);
+  const cashCollection = parseFloat(cash) || 0;
+  const tollExpense = parseFloat(toll) || 0;
+  const cngExpense = parseFloat(cng) || 0;
+  const petrolExpense = parseFloat(petrol) || 0;
+  const otherExpenses = parseFloat(others) || 0;
+  const loginHours = parseFloat(hours) || 0;
+  const openingBalance = parseFloat(oldBalance) || 0;
+  const roomRentAmount = parseFloat(roomRent) || 0;
+  
+  let payPercent = 0;
+  
+  // Base pay slab calculation
+  if (totalEarnings < 1800) {
+    payPercent = 0;
+  } else if (totalEarnings < 2500) {
+    payPercent = 25;
+  } else if (totalEarnings < 4000) {
+    payPercent = 30;
+  } else if (totalEarnings < 5000) {
+    payPercent = 32;
+  } else if (totalEarnings < 6000) {
+    payPercent = 34;
+  } else if (totalEarnings < 7000) {
+    payPercent = 38;
+  } else {
+    payPercent = 40; // 7000 and above
+  }
+  
+  // Login hours reduction
+  if (loginHours < 9) {
+    payPercent = Math.max(0, payPercent - 10);
+  } else if (loginHours < 11) {
+    payPercent = Math.max(0, payPercent - 5);
+  }
+  
+  // Calculate components
+  const salary = totalEarnings * payPercent / 100;
+  const commission = cashCollection - totalEarnings;
+  const payable = cashCollection - salary - cngExpense - petrolExpense - otherExpenses + openingBalance + roomRentAmount;
+  const pnl = totalEarnings - salary - cngExpense - tollExpense - petrolExpense - otherExpenses - 1080;
+  
+  return {
+    totalEarnings: totalEarnings.toFixed(2),
+    payPercent: payPercent,
+    salary: salary.toFixed(2),
+    commission: commission.toFixed(2),
+    payable: payable.toFixed(2),
+    pnl: pnl.toFixed(2)
+  };
+}
+
+function updateEntryCalculations() {
+  const form = document.getElementById('entryForm');
+  const earnings = parseFloat(form.earnings.value) || 0;
+  const offlineEarnings = parseFloat(form.offlineEarnings.value) || 0;
+  const hours = form.hours.value;
+  
+  const totalEarnings = earnings + offlineEarnings;
+  const pay = calculatePay(totalEarnings, hours);
+  
+  document.getElementById('payPercent').innerText = pay.percent;
+  document.getElementById('salary').innerText = formatCurrency(pay.salary);
+  document.getElementById('payable').innerText = formatCurrency(pay.payable);
+  document.getElementById('commission').innerText = formatCurrency(pay.commission);
+  
+  if (isAdmin()) {
+    const pl = (totalEarnings - pay.salary).toFixed(2);
+    document.getElementById('pl').innerText = formatCurrency(pl);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const form = document.getElementById('entryForm');
+  if (form) {
+    ['earnings', 'offlineEarnings', 'hours'].forEach(field => {
+      form[field].addEventListener('input', updateEntryCalculations);
+    });
+  }
+});
+
 updateDropdowns();
 renderSetup();
 renderDatabase();
+
+// Vehicle Management Functions
+function showVehicleDetails() {
+  const vehicleId = document.getElementById('vehicleSelect').value;
+  const vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
+  const vehicle = vehicles.find(v => v.id === vehicleId);
+  const detailsDiv = document.getElementById('vehicleDetails');
+  
+  if (!vehicle) {
+    detailsDiv.innerHTML = '<div class="no-details">Select a vehicle to view details</div>';
+    return;
+  }
+  
+  detailsDiv.innerHTML = `
+    <div class="detail-section">
+      <h3>Basic Information</h3>
+      <div><strong>Name:</strong> ${vehicle.name}</div>
+      <div><strong>Number:</strong> ${vehicle.number}</div>
+      <div><strong>Type:</strong> ${vehicle.type}</div>
+      <div><strong>Status:</strong> ${vehicle.status}</div>
+    </div>
+    <div class="detail-section">
+      <h3>Assignment History</h3>
+      ${getVehicleAssignmentHistory(vehicle.id)}
+    </div>
+  `;
+}
+
+function getVehicleAssignmentHistory(vehicleId) {
+  const assignments = JSON.parse(localStorage.getItem('vehicleAssignments') || '[]');
+  const drivers = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
+  
+  const vehicleAssignments = assignments.filter(a => a.vehicle === vehicleId);
+  if (vehicleAssignments.length === 0) {
+    return '<div>No assignment history</div>';
+  }
+  
+  return vehicleAssignments.map(assignment => {
+    const driver = drivers.find(d => d.id === assignment.driver);
+    return `
+      <div class="assignment-item">
+        <div>
+          <strong>${driver ? driver.name : 'Unknown Driver'}</strong>
+          <div>From: ${new Date(assignment.from).toLocaleDateString()}</div>
+          ${assignment.to ? `<div>To: ${new Date(assignment.to).toLocaleDateString()}</div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function addNewVehicle() {
+  document.getElementById('vehicleForm').reset();
+  document.getElementById('vehicleModal').style.display = 'block';
+}
+
+function editVehicle() {
+  const vehicleId = document.getElementById('vehicleSelect').value;
+  if (!vehicleId) {
+    alert('Please select a vehicle to edit');
+    return;
+  }
+  
+  const vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
+  const vehicle = vehicles.find(v => v.id === vehicleId);
+  
+  if (vehicle) {
+    document.getElementById('vehicleName').value = vehicle.name;
+    document.getElementById('vehicleNumber').value = vehicle.number;
+    document.getElementById('vehicleType').value = vehicle.type;
+    document.getElementById('vehicleStatus').value = vehicle.status;
+    document.getElementById('vehicleForm').dataset.editId = vehicleId;
+    document.getElementById('vehicleModal').style.display = 'block';
+  }
+}
+
+function deleteVehicle() {
+  const vehicleId = document.getElementById('vehicleSelect').value;
+  if (!vehicleId) {
+    alert('Please select a vehicle to delete');
+    return;
+  }
+  
+  if (confirm('Are you sure you want to delete this vehicle?')) {
+    const vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
+    const updatedVehicles = vehicles.filter(v => v.id !== vehicleId);
+    localStorage.setItem('vehicles', JSON.stringify(updatedVehicles));
+    
+    // Remove vehicle assignments
+    const assignments = JSON.parse(localStorage.getItem('vehicleAssignments') || '[]');
+    const updatedAssignments = assignments.filter(a => a.vehicle !== vehicleId);
+    localStorage.setItem('vehicleAssignments', JSON.stringify(updatedAssignments));
+    
+    updateVehicleDropdowns();
+    document.getElementById('vehicleSelect').value = '';
+    showVehicleDetails();
+  }
+}
+
+function handleVehicleSubmit(event) {
+  event.preventDefault();
+  
+  const vehicleData = {
+    id: event.target.dataset.editId || 'v' + Date.now(),
+    name: document.getElementById('vehicleName').value,
+    number: document.getElementById('vehicleNumber').value,
+    type: document.getElementById('vehicleType').value,
+    status: document.getElementById('vehicleStatus').value
+  };
+  
+  const vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
+  
+  if (event.target.dataset.editId) {
+    // Update existing vehicle
+    const index = vehicles.findIndex(v => v.id === event.target.dataset.editId);
+    if (index !== -1) {
+      vehicles[index] = vehicleData;
+    }
+  } else {
+    // Add new vehicle
+    vehicles.push(vehicleData);
+  }
+  
+  localStorage.setItem('vehicles', JSON.stringify(vehicles));
+  updateVehicleDropdowns();
+  closeVehicleModal();
+  showVehicleDetails();
+}
+
+function closeVehicleModal() {
+  document.getElementById('vehicleModal').style.display = 'none';
+  document.getElementById('vehicleForm').reset();
+  delete document.getElementById('vehicleForm').dataset.editId;
+}
+
+// Update vehicle dropdowns in all forms
+function updateVehicleDropdowns() {
+  const vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
+  const vehicleOptions = vehicles.map(v => 
+    `<option value="${v.id}">${v.name} (${v.number})</option>`
+  ).join('');
+  
+  // Update all vehicle dropdowns
+  ['vehicleSelect', 'assignVehicle', 'filterVehicle', 'weeklyVehicle'].forEach(id => {
+    const select = document.getElementById(id);
+    if (select) {
+      const currentValue = select.value;
+      select.innerHTML = `<option value="">Select Vehicle</option>${vehicleOptions}`;
+      select.value = currentValue;
+    }
+  });
+}

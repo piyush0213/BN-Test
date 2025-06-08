@@ -281,7 +281,6 @@ input:focus, select:focus {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   padding: var(--spacing-md);
-  -webkit-overflow-scrolling: touch;
   margin-top: var(--spacing-md);
   max-height: calc(100vh - 250px);
   overflow-y: auto;
@@ -293,70 +292,20 @@ table {
   font-size: 0.9rem;
   min-width: 1200px;
   table-layout: fixed;
-  border: 1px solid var(--border-color);
 }
 
-/* Column widths - optimized for single window view */
-th:nth-child(1), td:nth-child(1) { width: 80px; }  /* Date */
-th:nth-child(2), td:nth-child(2) { width: 100px; } /* Driver */
-th:nth-child(3), td:nth-child(3) { width: 90px; }  /* Vehicle */
-th:nth-child(4), td:nth-child(4) { width: 80px; }  /* Earnings */
-th:nth-child(5), td:nth-child(5) { width: 90px; }  /* Cash Collection */
-th:nth-child(6), td:nth-child(6) { width: 90px; }  /* Offline Earnings */
-th:nth-child(7), td:nth-child(7) { width: 90px; }  /* Offline Cash */
-th:nth-child(8), td:nth-child(8) { width: 60px; }  /* Trips */
-th:nth-child(9), td:nth-child(9) { width: 60px; }  /* Toll */
-th:nth-child(10), td:nth-child(10) { width: 70px; } /* Login Hrs */
-th:nth-child(11), td:nth-child(11) { width: 70px; } /* Salary */
-th:nth-child(12), td:nth-child(12) { width: 60px; } /* CNG */
-th:nth-child(13), td:nth-child(13) { width: 60px; } /* Petrol */
-th:nth-child(14), td:nth-child(14) { width: 90px; } /* Other Expenses */
-th:nth-child(15), td:nth-child(15) { width: 90px; } /* Opening Balance */
-th:nth-child(16), td:nth-child(16) { width: 70px; } /* Room Rent */
-th:nth-child(17), td:nth-child(17) { width: 70px; } /* Payable */
-th:nth-child(18), td:nth-child(18) { width: 70px; } /* P&L */
-th:nth-child(19), td:nth-child(19) { width: 80px; } /* Actions */
-
-th {
-  background: #f5f5f5;
-  font-weight: 600;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  color: var(--text-color);
-  border: 1px solid var(--border-color);
-  white-space: normal;
-  word-wrap: break-word;
-  height: auto;
-  min-height: 60px;
-  vertical-align: middle;
+th, td {
   padding: var(--spacing-sm);
-  font-size: 0.85rem;
-  line-height: 1.2;
-}
-
-td {
+  text-align: center;
   border: 1px solid var(--border-color);
-  padding: var(--spacing-sm);
   vertical-align: middle;
-}
-
-/* Header text wrapping */
-th span {
-  display: block;
-  padding: 2px 0;
-}
-
-/* Make headers more compact */
-th br {
-  display: none;
 }
 
 /* Left align text columns */
 td:nth-child(1), /* Date */
 td:nth-child(2), /* Driver */
 td:nth-child(3) { /* Vehicle */
-  text-align: left;
+  text-align: center;
 }
 
 /* Right align number columns */
@@ -375,14 +324,114 @@ td:nth-child(15), /* Opening Balance */
 td:nth-child(16), /* Room Rent */
 td:nth-child(17), /* Payable */
 td:nth-child(18) { /* P&L */
-  text-align: right;
+  text-align: center;
+  font-family: monospace;
 }
 
-td span {
+/* Entry Form Styles */
+#entry .form-grid {
+  max-width: 1200px;
+  margin: auto;
+  background: var(--card-bg);
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-md);
+}
+
+#entry .form-row {
+  display: contents;
+}
+
+#entry label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+#entry input {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+}
+
+/* Vehicle Management Tab */
+#vehicleManagement {
+  display: none;
+}
+
+#vehicleManagement.active {
   display: block;
-  padding: var(--spacing-xs);
-  font-size: 0.9rem;
-  color: var(--text-color);
+}
+
+.vehicle-list {
+  display: flex;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.vehicle-list select {
+  flex: 1;
+  min-width: 200px;
+}
+
+.vehicle-list button {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+
+.vehicle-list .edit-btn {
+  background: var(--primary-color);
+  color: white;
+}
+
+.vehicle-list .delete-btn {
+  background: var(--danger-color);
+  color: white;
+}
+
+.vehicle-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: #f8f9fa;
+  border-radius: var(--radius-sm);
+}
+
+/* Summary Tab Styles */
+#summary .chart-container {
+  background: white;
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--spacing-md);
+  height: 400px;
+}
+
+#summary canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Header text wrapping */
+th span {
+  display: block;
+  padding: 2px 0;
+}
+
+/* Make headers more compact */
+th br {
+  display: none;
 }
 
 /* Zebra striping for better row visibility */
@@ -1072,5 +1121,128 @@ tbody tr:hover {
 
   .chart-container canvas {
     max-width: 100%;
+  }
+}
+
+/* Modal Styles */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+}
+
+.modal-content {
+  position: relative;
+  background: white;
+  width: 90%;
+  max-width: 500px;
+  margin: 50px auto;
+  padding: var(--spacing-lg);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+
+.modal-content h2 {
+  color: var(--primary-color);
+  margin-bottom: var(--spacing-lg);
+  text-align: center;
+}
+
+.modal .form-group {
+  margin-bottom: var(--spacing-md);
+}
+
+.modal .form-group label {
+  display: block;
+  margin-bottom: var(--spacing-xs);
+  color: var(--text-color);
+}
+
+.modal .form-group input,
+.modal .form-group select {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+}
+
+.modal .actions {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-lg);
+}
+
+.modal .submit-button {
+  background: var(--success-color);
+  color: white;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.modal .cancel-button {
+  background: var(--danger-color);
+  color: white;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Vehicle Management Styles */
+.vehicle-list .add-btn {
+  background: var(--success-color);
+  color: white;
+}
+
+.detail-section {
+  background: white;
+  padding: var(--spacing-md);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
+}
+
+.detail-section h3 {
+  color: var(--primary-color);
+  margin-bottom: var(--spacing-sm);
+  font-size: 1.1rem;
+}
+
+.detail-section div {
+  margin-bottom: var(--spacing-xs);
+  font-size: 0.95rem;
+}
+
+.no-details {
+  text-align: center;
+  padding: var(--spacing-lg);
+  color: var(--text-light);
+  font-style: italic;
+}
+
+/* Responsive Modal */
+@media (max-width: 768px) {
+  .modal-content {
+    width: 95%;
+    margin: 20px auto;
+    padding: var(--spacing-md);
+  }
+  
+  .modal .actions {
+    flex-direction: column;
+  }
+  
+  .modal .actions button {
+    width: 100%;
   }
 }
