@@ -88,13 +88,30 @@ function updateDropdownsByRole() {
   const currentUser = JSON.parse(localStorage.getItem('currentUser'));
   if (currentUser && currentUser.role === 'driver') {
     // For drivers, only show their vehicle
-    const assignments = JSON.parse(localStorage.getItem('assignments') || '{}');
-    const vehicle = assignments[currentUser.username];
-    if (vehicle) {
+    const assignments = JSON.parse(localStorage.getItem('assignments') || '[]'); // Changed from {} to [] for consistency with getStoredData
+    const assignedVehicleNumber = assignments.find(a => a.driver === currentUser.username)?.vehicle; // Get the assigned vehicle number
+
+    if (assignedVehicleNumber) {
       const vehicleInput = document.getElementById('vehicleInput');
       if (vehicleInput) {
-        vehicleInput.value = vehicle;
+        vehicleInput.value = assignedVehicleNumber; // Set the value to the assigned vehicle number
         vehicleInput.readOnly = true;
+
+        // Disable the dropdown options except the assigned one
+        Array.from(vehicleInput.options).forEach(option => {
+          if (option.value !== assignedVehicleNumber) {
+            option.disabled = true;
+          }
+        });
+
+        // If the assigned vehicle is not in the dropdown (e.g., if inactive), add it temporarily
+        if (!Array.from(vehicleInput.options).some(o => o.value === assignedVehicleNumber)) {
+          const newOption = document.createElement('option');
+          newOption.value = assignedVehicleNumber;
+          newOption.textContent = assignedVehicleNumber;
+          newOption.selected = true;
+          vehicleInput.appendChild(newOption);
+        }
       }
     }
   }

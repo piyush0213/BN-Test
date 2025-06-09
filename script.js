@@ -1,7 +1,7 @@
 // Initialize global variables
 let drivers = JSON.parse(localStorage.getItem('drivers') || '[]');
 let vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
-let assignments = JSON.parse(localStorage.getItem('assignments') || '{}');
+let assignments = JSON.parse(localStorage.getItem('assignments') || '[]');
 let entries = JSON.parse(localStorage.getItem('entries') || '[]');
 let roomAllocations = JSON.parse(localStorage.getItem('roomAllocations') || '{}');
 
@@ -12,6 +12,10 @@ if (!localStorage.getItem('driverProfiles')) {
 
 if (!localStorage.getItem('vehicles')) {
   localStorage.setItem('vehicles', JSON.stringify([]));
+}
+
+if (!localStorage.getItem('assignments')) {
+  localStorage.setItem('assignments', JSON.stringify([]));
 }
 
 // Core functions
@@ -53,8 +57,8 @@ function updateDropdowns() {
     // Update vehicle dropdowns
     const vehicleLists = document.querySelectorAll('#vehicleInput, #filterVehicle, #assignVehicle, #weeklyVehicle');
     vehicleLists.forEach(list => {
-      list.innerHTML = '<option value="">Select Vehicle</option>' + 
-        vehicles.map(v => `<option value="${v.name}">${v.name}</option>`).join('');
+      list.innerHTML = '<option value="">Select Vehicle Number</option>' + 
+        vehicles.map(v => `<option value="${v.number}">${v.number}</option>`).join('');
     });
   } catch (error) {
     console.error('Error in updateDropdowns:', error);
@@ -83,13 +87,8 @@ function addDriver() {
 }
 
 function addVehicle() {
-  const name = prompt("Enter vehicle number:");
-  if (name && !vehicles.includes(name)) {
-    vehicles.push(name);
-    localStorage.setItem('vehicles', JSON.stringify(vehicles));
-    updateDropdowns();
-    renderSetup();
-  }
+  // This function is no longer needed as vehicle addition is handled via modal
+  console.warn("addVehicle function is deprecated. Use addNewVehicle() via modal.");
 }
 
 function assignDriverVehicle() {
@@ -98,9 +97,9 @@ function assignDriverVehicle() {
     const vehicleSelect = document.getElementById('assignVehicle');
     
     const driverName = driverSelect.value;
-    const vehicleName = vehicleSelect.value;
+    const vehicleNumber = vehicleSelect.value;
 
-    if (!driverName || !vehicleName) {
+    if (!driverName || !vehicleNumber) {
       alert('Please select both driver and vehicle');
       return;
     }
@@ -109,18 +108,18 @@ function assignDriverVehicle() {
     const vehicles = getStoredData('vehicles');
 
     // Check if vehicle exists and is active
-    const vehicle = vehicles.find(v => v.name === vehicleName);
+    const vehicle = vehicles.find(v => v.number === vehicleNumber);
     if (!vehicle) {
-      throw new Error('Selected vehicle not found');
+      throw new Error('Selected vehicle number not found.');
     }
     if (vehicle.status !== 'active') {
-      throw new Error('Cannot assign inactive vehicle');
+      throw new Error('Cannot assign inactive vehicle.');
     }
 
     // Check if vehicle is already assigned
-    const existingAssignment = assignments.find(a => a.vehicle === vehicleName);
+    const existingAssignment = assignments.find(a => a.vehicle === vehicleNumber);
     if (existingAssignment) {
-      throw new Error(`Vehicle is already assigned to driver: ${existingAssignment.driver}`);
+      throw new Error(`Vehicle number ${vehicleNumber} is already assigned to driver: ${existingAssignment.driver}.`);
     }
 
     // Remove any existing assignment for this driver
@@ -129,15 +128,15 @@ function assignDriverVehicle() {
     // Add new assignment
     updatedAssignments.push({
       driver: driverName,
-      vehicle: vehicleName,
+      vehicle: vehicleNumber,
       assignedAt: new Date().toISOString()
     });
 
     if (!saveStoredData('assignments', updatedAssignments)) {
-      throw new Error('Failed to save assignment');
+      throw new Error('Failed to save assignment.');
     }
 
-    alert('Vehicle assigned successfully');
+    alert('Vehicle assigned successfully!');
     
     // Update UI
     renderAssignmentList();
@@ -160,18 +159,28 @@ function autoFillVehicle(driverName) {
     const assignment = assignments.find(a => a.driver === driverName);
     if (!assignment) {
       console.warn('No vehicle assignment found for driver:', driverName);
+      const vehicleInput = document.getElementById('vehicleInput');
+      if (vehicleInput) {
+        vehicleInput.value = '';
+        vehicleInput.readOnly = false;
+      }
       return;
     }
 
-    const vehicle = vehicles.find(v => v.name === assignment.vehicle);
+    const vehicle = vehicles.find(v => v.number === assignment.vehicle);
     if (!vehicle) {
-      console.warn('Assigned vehicle not found:', assignment.vehicle);
+      console.warn('Assigned vehicle number not found:', assignment.vehicle);
+      const vehicleInput = document.getElementById('vehicleInput');
+      if (vehicleInput) {
+        vehicleInput.value = '';
+        vehicleInput.readOnly = false;
+      }
       return;
     }
 
     const vehicleInput = document.getElementById('vehicleInput');
     if (vehicleInput) {
-      vehicleInput.value = vehicle.name;
+      vehicleInput.value = vehicle.number;
       // Trigger change event to update calculations
       vehicleInput.dispatchEvent(new Event('change'));
     }
@@ -191,12 +200,18 @@ function renderSetup() {
     }
   });
 
-  // Update vehicle select
-  const vehicles = JSON.parse(localStorage.getItem('vehicles') || '[]');
-  const vehicleOptions = vehicles.map(v => `<option value="${v.id}">${v.name} (${v.number})</option>`).join('');
+  // Update vehicle select in Setup tab to display only numbers
+  const vehicleSelectElement = document.getElementById('vehicleSelect');
+  if (vehicleSelectElement) {
+    vehicleSelectElement.innerHTML = '<option value="">Select Vehicle Number</option>' + 
+      vehicles.map(v => `<option value="${v.number}">${v.number}</option>`).join('');
+  }
+
+  // Update assignVehicle dropdown in Setup tab to display only numbers
   const assignVehicle = document.getElementById('assignVehicle');
   if (assignVehicle) {
-    assignVehicle.innerHTML = `<option value="">Select Vehicle</option>${vehicleOptions}`;
+    assignVehicle.innerHTML = '<option value="">Select Vehicle Number</option>' + 
+      vehicles.map(v => `<option value="${v.number}">${v.number}</option>`).join('');
   }
 
   // Render assignments list
@@ -221,24 +236,9 @@ function renderSetup() {
   }
 }
 
-function editDriver(index) {
-  const name = prompt("Edit driver name:", drivers[index]);
-  if (name && name !== drivers[index]) {
-    drivers[index] = name;
-    localStorage.setItem('drivers', JSON.stringify(drivers));
-    renderSetup();
-    updateDropdowns();
-  }
-}
-
 function editVehicle(index) {
-  const name = prompt("Edit vehicle number:", vehicles[index]);
-  if (name && name !== vehicles[index]) {
-    vehicles[index] = name;
-    localStorage.setItem('vehicles', JSON.stringify(vehicles));
-    renderSetup();
-    updateDropdowns();
-  }
+  // This function is no longer needed as vehicle editing is handled via modal
+  console.warn("editVehicle function is deprecated. Use editVehicle() via modal.");
 }
 
 function removeDriver(index) {
@@ -254,12 +254,8 @@ function removeDriver(index) {
 }
 
 function removeVehicle(index) {
-  if (confirm("Delete this vehicle?")) {
-    vehicles.splice(index, 1);
-    localStorage.setItem('vehicles', JSON.stringify(vehicles));
-    renderSetup();
-    updateDropdowns();
-  }
+  // This function is no longer needed as vehicle deletion is handled via modal
+  console.warn("removeVehicle function is deprecated. Use deleteVehicle() via modal.");
 }
 
 function removeAssignment(driverName) {
@@ -345,7 +341,7 @@ document.getElementById('entryForm').addEventListener('submit', function(event) 
   try {
     const form = event.target;
     const driverName = form.driver.value;
-    const vehicleName = form.vehicle.value;
+    const vehicleNumber = form.vehicle.value;
     
     // Get current data
     const entries = getStoredData('entries');
@@ -358,13 +354,13 @@ document.getElementById('entryForm').addEventListener('submit', function(event) 
       throw new Error('Driver is not assigned to any vehicle. Please assign a vehicle first.');
     }
     
-    const assignedVehicle = vehicles.find(v => v.name === currentAssignment.vehicle);
+    const assignedVehicle = vehicles.find(v => v.number === vehicleNumber);
     if (!assignedVehicle) {
-      throw new Error('Assigned vehicle not found in vehicle list.');
+      throw new Error('Assigned vehicle number not found in vehicle list.');
     }
     
-    if (assignedVehicle.name !== vehicleName) {
-      throw new Error(`Driver is assigned to vehicle: ${assignedVehicle.name}. Please select the correct vehicle.`);
+    if (assignedVehicle.number !== vehicleNumber) {
+      throw new Error(`Driver is assigned to vehicle number: ${assignedVehicle.number}. Please select the correct vehicle.`);
     }
 
     // Create new entry
@@ -372,7 +368,7 @@ document.getElementById('entryForm').addEventListener('submit', function(event) 
       id: 'e' + Date.now(),
       date: form.date.value,
       driver: driverName,
-      vehicle: vehicleName,
+      vehicle: vehicleNumber,
       earnings: parseFloat(form.earnings.value) || 0,
       cash: parseFloat(form.cash.value) || 0,
       offlineEarnings: parseFloat(form.offlineEarnings.value) || 0,
@@ -452,13 +448,13 @@ function renderDatabase() {
 
     tbody.innerHTML = filteredEntries.map(entry => {
       const driver = driverProfiles.find(d => d.name === entry.driver) || { name: entry.driver };
-      const vehicle = vehicles.find(v => v.name === entry.vehicle) || { name: entry.vehicle, number: 'N/A' };
+      const vehicle = vehicles.find(v => v.number === entry.vehicle) || { number: entry.vehicle, type: 'N/A', status: 'N/A' };
       
       return `
         <tr>
           <td>${new Date(entry.date).toLocaleDateString()}</td>
           <td>${driver.name}</td>
-          <td>${vehicle.number || 'N/A'}</td>
+          <td>${vehicle.number}</td>
           <td>${formatCurrency(entry.earnings)}</td>
           <td>${formatCurrency(entry.cash)}</td>
           <td>${formatCurrency(entry.offlineEarnings)}</td>
@@ -581,24 +577,24 @@ function importExcel(event) {
           }
         }
         
-        // Find driver and vehicle IDs
+        // Find driver and vehicle by name/number
         const driver = driverProfiles.find(d => d.name === row.Driver);
-        const vehicle = vehicles.find(v => v.name === row.Vehicle);
+        const vehicle = vehicles.find(v => v.number === row['Vehicle Number']);
         
         if (!driver) {
           throw new Error(`Driver not found: ${row.Driver}. Please add this driver first.`);
         }
         
         if (!vehicle) {
-          throw new Error(`Vehicle not found: ${row.Vehicle}. Please add this vehicle first.`);
+          throw new Error(`Vehicle number not found: ${row['Vehicle Number']}. Please add this vehicle first.`);
         }
         
         // Convert all numeric values to proper format
         return {
           id,
           date,
-          driver: driver.id,
-          vehicle: vehicle.id,
+          driver: driver.name,
+          vehicle: vehicle.number,
           earnings: parseFloat(row.Earnings) || 0,
           cash: parseFloat(row.Cash) || 0,
           offlineEarnings: parseFloat(row['Offline Earnings']) || 0,
@@ -656,7 +652,7 @@ function shareData(type) {
 BN Cab's - Daily Entry
 Date: ${data.date}
 Driver: ${data.driver}
-Vehicle: ${data.vehicle}
+Vehicle Number: ${data.vehicle}
 
 Earnings: ₹${formatCurrency(data.earnings)}
 Cash Collection: ₹${formatCurrency(data.cash)}
@@ -719,7 +715,7 @@ Driver-wise Performance:
 ${driverStats}
 
 Vehicle-wise Summary:
-${vehicles.map(v => `${v.name}: ${entries.filter(e => e.vehicle === v.name).length} days`).join('\n')}
+${vehicles.map(v => `${v.number}: ${entries.filter(e => e.vehicle === v.number).length} days`).join('\n')}
     `.trim();
 
     if (navigator.share) {
@@ -822,14 +818,14 @@ function generateWeeklySummary() {
     const selectedVehicle = document.getElementById('weeklyVehicle').value;
 
     if (!fromDate || !toDate) {
-      alert('Please select both from and to dates');
+      alert('Please select both from and to dates.');
       return;
     }
 
     const entries = getStoredData('entries');
     const vehicles = getStoredData('vehicles');
 
-    // Filter entries by date range and vehicle
+    // Filter entries by date range and vehicle number
     const filteredEntries = entries.filter(entry => {
       const entryDate = new Date(entry.date);
       const from = new Date(fromDate);
@@ -1452,12 +1448,14 @@ function renderSummaryCharts() {
 }
 
 function formatCurrency(value) {
+  // Ensure value is a number, if not, default to 0
+  const numericValue = typeof value === 'number' && !isNaN(value) ? value : 0;
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0
-  }).format(value);
+  }).format(numericValue);
 }
 
 function formatNumber(value) {
@@ -1465,7 +1463,7 @@ function formatNumber(value) {
 }
 
 function calculatePay(earnings, offlineEarnings, cash, toll, cng, petrol, others, hours, oldBalance, roomRent) {
-  // Convert all inputs to numbers
+  // Convert all inputs to numbers and handle potential non-numeric values
   const totalEarnings = (parseFloat(earnings) || 0) + (parseFloat(offlineEarnings) || 0);
   const cashCollection = parseFloat(cash) || 0;
   const tollExpense = parseFloat(toll) || 0;
@@ -1506,7 +1504,7 @@ function calculatePay(earnings, offlineEarnings, cash, toll, cng, petrol, others
   const salary = totalEarnings * payPercent / 100;
   const commission = cashCollection - totalEarnings;
   const payable = cashCollection - salary - cngExpense - petrolExpense - otherExpenses + openingBalance + roomRentAmount;
-  const pnl = totalEarnings - salary - cngExpense - tollExpense - petrolExpense - otherExpenses - 1080;
+  const pnl = totalEarnings - salary - cngExpense - tollExpense - petrolExpense - otherExpenses - 1080; // Ensure 1080 is correctly subtracted
   
   return {
     totalEarnings: totalEarnings.toFixed(2),
@@ -1595,7 +1593,6 @@ function addNewVehicle() {
   try {
     // Reset form
     document.getElementById('vehicleForm').reset();
-    document.getElementById('vehicleName').value = '';
     document.getElementById('vehicleNumber').value = '';
     document.getElementById('vehicleType').value = 'sedan';
     document.getElementById('vehicleStatus').value = 'active';
@@ -1619,14 +1616,13 @@ function editVehicle() {
     }
 
     const vehicles = getStoredData('vehicles');
-    const vehicle = vehicles.find(v => v.name === selectedVehicle);
+    const vehicle = vehicles.find(v => v.number === selectedVehicle);
     
     if (!vehicle) {
       throw new Error('Selected vehicle not found');
     }
 
     // Populate form
-    document.getElementById('vehicleName').value = vehicle.name;
     document.getElementById('vehicleNumber').value = vehicle.number;
     document.getElementById('vehicleType').value = vehicle.type;
     document.getElementById('vehicleStatus').value = vehicle.status;
@@ -1670,7 +1666,7 @@ function deleteVehicle() {
     }
 
     // Remove vehicle
-    const updatedVehicles = vehicles.filter(v => v.name !== selectedVehicle);
+    const updatedVehicles = vehicles.filter(v => v.number !== selectedVehicle);
     
     if (!saveStoredData('vehicles', updatedVehicles)) {
       throw new Error('Failed to delete vehicle');
@@ -1695,39 +1691,38 @@ function handleVehicleSubmit(event) {
     const type = document.getElementById('vehicleType').value;
     const status = document.getElementById('vehicleStatus').value;
 
-    if (!name || !number) {
-      throw new Error('Vehicle name and number are required');
+    if (!number) {
+      throw new Error('Vehicle number is required');
     }
 
     const vehicles = getStoredData('vehicles');
     const assignments = getStoredData('assignments');
     const selectedVehicle = document.getElementById('vehicleSelect').value;
 
-    // Check if vehicle name already exists (for new vehicles)
-    const existingVehicle = vehicles.find(v => v.name === name);
-    if (existingVehicle && (!selectedVehicle || selectedVehicle !== name)) {
-      throw new Error('Vehicle with this name already exists');
+    // Check if vehicle number already exists (for new vehicles)
+    const existingVehicle = vehicles.find(v => v.number === number);
+    if (existingVehicle && (!selectedVehicle || selectedVehicle !== number)) {
+      throw new Error('Vehicle with this number already exists');
     }
 
     // Check if vehicle is assigned and being made inactive
     if (existingVehicle && status === 'inactive') {
-      const isAssigned = assignments.some(a => a.vehicle === name);
+      const isAssigned = assignments.some(a => a.vehicle === number);
       if (isAssigned) {
         throw new Error('Cannot make vehicle inactive while it is assigned to a driver');
       }
     }
 
     const vehicleData = {
-      name: name,
       number: number,
       type: type,
       status: status
     };
 
     let updatedVehicles;
-    if (existingVehicle && selectedVehicle === name) {
+    if (existingVehicle && selectedVehicle === number) {
       // Update existing vehicle
-      updatedVehicles = vehicles.map(v => v.name === name ? vehicleData : v);
+      updatedVehicles = vehicles.map(v => v.number === number ? vehicleData : v);
     } else if (!existingVehicle) {
       // Add new vehicle
       updatedVehicles = [...vehicles, vehicleData];
@@ -1765,7 +1760,7 @@ function updateVehicleDropdowns() {
     const vehicleSelect = document.getElementById('vehicleSelect');
     if (vehicleSelect) {
       vehicleSelect.innerHTML = '<option value="">Select Vehicle</option>' +
-        vehicles.map(v => `<option value="${v.name}">${v.name} (${v.number})</option>`).join('');
+        vehicles.map(v => `<option value="${v.number}">${v.number} (${v.type})</option>`).join('');
     }
 
     // Update vehicle select in assignment form
@@ -1776,11 +1771,11 @@ function updateVehicleDropdowns() {
       
       // Filter out assigned vehicles
       const availableVehicles = vehicles.filter(v => 
-        !assignedVehicles.includes(v.name) && v.status === 'active'
+        !assignedVehicles.includes(v.number) && v.status === 'active'
       );
       
       assignVehicle.innerHTML = '<option value="">Select Vehicle</option>' +
-        availableVehicles.map(v => `<option value="${v.name}">${v.name} (${v.number})</option>`).join('');
+        availableVehicles.map(v => `<option value="${v.number}">${v.number} (${v.type})</option>`).join('');
     }
 
     // Update vehicle select in entry form
@@ -1788,21 +1783,21 @@ function updateVehicleDropdowns() {
     if (vehicleInput) {
       vehicleInput.innerHTML = vehicles
         .filter(v => v.status === 'active')
-        .map(v => `<option value="${v.name}">${v.name} (${v.number})</option>`).join('');
+        .map(v => `<option value="${v.number}">${v.number} (${v.type})</option>`).join('');
     }
 
     // Update vehicle filter in database
     const filterVehicle = document.getElementById('filterVehicle');
     if (filterVehicle) {
       filterVehicle.innerHTML = '<option value="">All Vehicles</option>' +
-        vehicles.map(v => `<option value="${v.name}">${v.name} (${v.number})</option>`).join('');
+        vehicles.map(v => `<option value="${v.number}">${v.number} (${v.type})</option>`).join('');
     }
 
     // Update vehicle filter in weekly summary
     const weeklyVehicle = document.getElementById('weeklyVehicle');
     if (weeklyVehicle) {
       weeklyVehicle.innerHTML = '<option value="">All Vehicles</option>' +
-        vehicles.map(v => `<option value="${v.name}">${v.name} (${v.number})</option>`).join('');
+        vehicles.map(v => `<option value="${v.number}">${v.number} (${v.type})</option>`).join('');
     }
   } catch (error) {
     console.error('Error in updateVehicleDropdowns:', error);
@@ -1816,7 +1811,23 @@ function getStoredData(key, defaultValue = []) {
     if (!data) return defaultValue;
     
     const parsed = JSON.parse(data);
-    return Array.isArray(parsed) ? parsed : defaultValue;
+    
+    // Special handling for 'assignments' to always return an array
+    if (key === 'assignments') {
+      if (Array.isArray(parsed)) {
+        return parsed;
+      } else if (typeof parsed === 'object' && parsed !== null) {
+        // Convert old object format to array of objects if found
+        return Object.values(parsed);
+      }
+      return []; // Default to empty array if unexpected format
+    }
+
+    // Ensure the default value is returned if parsed is null or not an array for keys expecting arrays
+    if (Array.isArray(defaultValue) && !Array.isArray(parsed)) {
+        return defaultValue;
+    }
+    return parsed;
   } catch (error) {
     console.error(`Error getting ${key} from localStorage:`, error);
     return defaultValue;
@@ -1826,9 +1837,22 @@ function getStoredData(key, defaultValue = []) {
 // Helper function to safely save data to localStorage
 function saveStoredData(key, data) {
   try {
-    if (!Array.isArray(data)) {
-      console.error(`Data for ${key} must be an array`);
-      return false;
+    // Special handling for 'assignments' to always save as an array
+    if (key === 'assignments') {
+      if (!Array.isArray(data)) {
+        console.warn(`Attempting to save non-array data for assignments. Converting to array.`);
+        if (typeof data === 'object' && data !== null) {
+            data = Object.values(data); // Convert object to array of values
+        } else {
+            data = []; // Default to empty array if unexpected format
+        }
+      }
+    }
+
+    // Ensure data is always saved as an array if it's supposed to be an array
+    if (Array.isArray(getStoredData(key, [])) && !Array.isArray(data)) { // Check if the key was expected to be an array and current data is not
+        console.warn(`Attempting to save non-array data for key ${key} which expects an array. This might be an issue.`);
+        // You might want to throw an error or convert more strictly here depending on the desired behavior
     }
     localStorage.setItem(key, JSON.stringify(data));
     return true;
@@ -1843,9 +1867,13 @@ function showVehicleDetails() {
     const vehicleSelect = document.getElementById('vehicleSelect');
     const selectedVehicle = vehicleSelect.value;
     const detailsContainer = document.getElementById('vehicleDetails');
-    
+
+    console.log('showVehicleDetails called.');
+    console.log('Selected Vehicle Number:', selectedVehicle);
+
     if (!selectedVehicle) {
       detailsContainer.innerHTML = '<div class="no-details">Select a vehicle to view details</div>';
+      console.log('No vehicle selected.');
       return;
     }
 
@@ -1853,14 +1881,22 @@ function showVehicleDetails() {
     const assignments = getStoredData('assignments');
     const entries = getStoredData('entries');
 
-    const vehicle = vehicles.find(v => v.name === selectedVehicle);
+    console.log('Current vehicles data:', vehicles);
+    console.log('Current assignments data:', assignments);
+    console.log('Current entries data:', entries);
+
+    const vehicle = vehicles.find(v => v.number === selectedVehicle);
+    console.log('Found vehicle object:', vehicle);
+
     if (!vehicle) {
-      detailsContainer.innerHTML = '<div class="no-details">Vehicle not found</div>';
+      detailsContainer.innerHTML = '<div class="no-details">Vehicle number not found.</div>';
+      console.log('Vehicle not found in vehicles data.');
       return;
     }
 
     // Get current assignment
     const currentAssignment = assignments.find(a => a.vehicle === selectedVehicle);
+    console.log('Current assignment for selected vehicle:', currentAssignment);
     const assignedDriver = currentAssignment ? currentAssignment.driver : 'Not assigned';
 
     // Get vehicle statistics
@@ -1868,11 +1904,14 @@ function showVehicleDetails() {
     const totalTrips = vehicleEntries.reduce((sum, e) => sum + (e.trips || 0), 0);
     const totalEarnings = vehicleEntries.reduce((sum, e) => sum + (e.earnings || 0) + (e.offlineEarnings || 0), 0);
 
+    console.log('Vehicle entries:', vehicleEntries);
+    console.log('Total Trips:', totalTrips);
+    console.log('Total Earnings:', totalEarnings);
+
     // Create details HTML
     const detailsHTML = `
       <div class="detail-section">
         <h3>Vehicle Information</h3>
-        <div>Name: ${vehicle.name}</div>
         <div>Number: ${vehicle.number}</div>
         <div>Type: ${vehicle.type}</div>
         <div>Status: ${vehicle.status}</div>
@@ -1912,7 +1951,7 @@ function renderAssignmentList() {
     }
 
     const assignmentsHTML = assignments.map(assignment => {
-      const vehicle = vehicles.find(v => v.name === assignment.vehicle);
+      const vehicle = vehicles.find(v => v.number === assignment.vehicle);
       const driver = driverProfiles.find(d => d.name === assignment.driver);
       
       return `
@@ -1920,7 +1959,7 @@ function renderAssignmentList() {
           <div>
             <strong>Driver:</strong> ${driver ? driver.name : assignment.driver}
             <br>
-            <strong>Vehicle:</strong> ${vehicle ? `${vehicle.name} (${vehicle.number})` : assignment.vehicle}
+            <strong>Vehicle:</strong> ${vehicle ? `${vehicle.number} (${vehicle.type})` : assignment.vehicle}
             <br>
             <strong>Assigned At:</strong> ${new Date(assignment.assignedAt).toLocaleString()}
           </div>
@@ -2006,8 +2045,8 @@ function updateFilters() {
       const uniqueVehicles = [...new Set(entries.map(e => e.vehicle))];
       filterVehicle.innerHTML = '<option value="">All Vehicles</option>' +
         uniqueVehicles.map(vehicle => {
-          const v = vehicles.find(v => v.name === vehicle);
-          return `<option value="${vehicle}">${v ? `${v.name} (${v.number})` : vehicle}</option>`;
+          const v = vehicles.find(v => v.number === vehicle);
+          return `<option value="${vehicle}">${v ? `${v.number} (${v.type})` : vehicle}</option>`;
         }).join('');
     }
   } catch (error) {

@@ -324,7 +324,7 @@ td:nth-child(15), /* Opening Balance */
 td:nth-child(16), /* Room Rent */
 td:nth-child(17), /* Payable */
 td:nth-child(18) { /* P&L */
-  text-align: center;
+  text-align: right;
   font-family: monospace;
 }
 
