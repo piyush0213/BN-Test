@@ -340,6 +340,24 @@ document.getElementById('entryForm').addEventListener('submit', function(event) 
   event.preventDefault();
   try {
     const form = event.target;
+
+    const numericFields = [
+      'earnings', 'cash', 'offlineEarnings', 'offlineCash', 'trips',
+      'toll', 'hours', 'cng', 'petrol', 'other', 'ob'
+    ];
+
+    for (const fieldName of numericFields) {
+      const inputElement = form[fieldName];
+      // Check if the input is required and its value is not a valid number
+      if (inputElement && inputElement.hasAttribute('required') && (inputElement.value.trim() === '' || isNaN(parseFloat(inputElement.value)))) {
+        // Format the field name for a user-friendly message
+        const readableFieldName = fieldName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+        alert(`Kripya '${readableFieldName}' ke liye ek sahi sankhya daalein. Yeh khaali nahi ho sakta ya galat akshar nahi ho sakte.`);
+        inputElement.focus();
+        return; // Prevent form submission
+      }
+    }
+
     const driverName = form.driver.value;
     const vehicleNumber = form.vehicle.value;
     
@@ -421,7 +439,6 @@ document.getElementById('entryForm').addEventListener('submit', function(event) 
     renderDatabase();
     generateWeeklySummary();
     renderSummary();
-    renderSummaryCharts();
     
   } catch (error) {
     console.error('Error saving entry:', error);
@@ -951,7 +968,7 @@ function renderSummary() {
     if (!driverEarnings[entry.driver]) {
       driverEarnings[entry.driver] = 0;
     }
-    driverEarnings[entry.driver] += parseFloat(entry.totalEarnings) || 0;
+    driverEarnings[entry.driver] += parseFloat(entry.earnings) || 0; // Use entry.earnings for earnings by driver
     
     // Weekly data
     if (!weeklyData[weekKey]) {
@@ -960,23 +977,36 @@ function renderSummary() {
         trips: 0
       };
     }
-    weeklyData[weekKey].earnings += parseFloat(entry.totalEarnings) || 0;
+    weeklyData[weekKey].earnings += parseFloat(entry.earnings) || 0; // Use entry.earnings for weekly earnings
     weeklyData[weekKey].trips += parseInt(entry.trips) || 0;
   });
   
   // Sort weekly data by date
   const sortedWeeks = Object.keys(weeklyData).sort();
   
+  // Call renderSummaryCharts with prepared data
+  renderSummaryCharts(driverEarnings, weeklyData, sortedWeeks, drivers);
+}
+
+function renderSummaryCharts(driverEarnings, weeklyData, sortedWeeks, drivers) {
+  // Get canvas elements
+  const earningsCanvas = document.getElementById('earningsChart');
+  const trendsCanvas = document.getElementById('weeklyTrendsChart');
+
   // Destroy existing charts if they exist
-  if (typeof window.earningsChart !== 'undefined' && window.earningsChart instanceof Chart) {
-    window.earningsChart.destroy();
+  // Use Chart.getChart() to get the chart instance associated with the canvas ID
+  let earningsChartInstance = Chart.getChart(earningsCanvas); // Pass canvas element directly
+  if (earningsChartInstance) {
+    earningsChartInstance.destroy();
   }
-  if (typeof window.trendsChart !== 'undefined' && window.trendsChart instanceof Chart) {
-    window.trendsChart.destroy();
+
+  let trendsChartInstance = Chart.getChart(trendsCanvas); // Pass canvas element directly
+  if (trendsChartInstance) {
+    trendsChartInstance.destroy();
   }
-  
+
   // Render Earnings by Driver Chart
-  const earningsCtx = document.getElementById('earningsChart').getContext('2d');
+  const earningsCtx = earningsCanvas.getContext('2d');
   window.earningsChart = new Chart(earningsCtx, {
     type: 'bar',
     data: {
@@ -1014,7 +1044,7 @@ function renderSummary() {
   });
   
   // Render Weekly Trends Chart
-  const trendsCtx = document.getElementById('weeklyTrendsChart').getContext('2d');
+  const trendsCtx = trendsCanvas.getContext('2d');
   window.trendsChart = new Chart(trendsCtx, {
     type: 'line',
     data: {
@@ -1064,385 +1094,6 @@ function renderSummary() {
               return context.raw + ' trips';
             }
           }
-        }
-      }
-    }
-  });
-}
-
-function toggleRoomAllocation() {
-  const driver = document.getElementById('roomDriver').value;
-  if (!driver) {
-    alert('Please select a driver');
-    return;
-  }
-
-  const roomAllocations = JSON.parse(localStorage.getItem('roomAllocations') || '{}');
-  roomAllocations[driver] = !roomAllocations[driver];
-  localStorage.setItem('roomAllocations', JSON.stringify(roomAllocations));
-  renderSetup();
-  alert(`Room allocation ${roomAllocations[driver] ? 'enabled' : 'disabled'} for ${driver}`);
-}
-
-function setDriverPin() {
-  const driver = document.getElementById('pinDriver').value;
-  const pin = document.getElementById('driverPin').value;
-  
-  if (!driver || !pin || pin.length !== 6) {
-    alert('Please select a driver and enter a 6-digit PIN');
-    return;
-  }
-  
-  const driverPins = JSON.parse(localStorage.getItem('driverPins') || '{}');
-  driverPins[driver] = pin;
-  localStorage.setItem('driverPins', JSON.stringify(driverPins));
-  
-  alert('PIN set successfully');
-  document.getElementById('driverPin').value = '';
-  renderPINList();
-}
-
-function resetDriverPin(driver) {
-  if (confirm('Are you sure you want to reset the PIN for this driver?')) {
-    const driverPins = JSON.parse(localStorage.getItem('driverPins') || '{}');
-    delete driverPins[driver];
-    localStorage.setItem('driverPins', JSON.stringify(driverPins));
-    renderPINList();
-  }
-}
-
-function showSetupTab(tabId) {
-  document.querySelectorAll('.setup-content').forEach(t => t.classList.remove('active'));
-  document.getElementById(tabId).classList.add('active');
-  document.querySelectorAll('.setup-tabs button').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
-}
-
-function showDriverDetails() {
-  const driverId = document.getElementById('driverSelect').value;
-  if (!driverId) return;
-
-  const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
-  const profile = driverProfiles.find(d => d.id === driverId);
-  const profileDiv = document.getElementById('driverProfile');
-
-  if (profile) {
-    profileDiv.innerHTML = `
-      <div class="profile-section">
-        <h3>Personal Information</h3>
-        <div><strong>Name:</strong> ${profile.name}</div>
-        <div><strong>Father's Name:</strong> ${profile.fatherName}</div>
-        <div><strong>Date of Birth:</strong> ${profile.dob}</div>
-        <div><strong>Joining Date:</strong> ${profile.joiningDate}</div>
-      </div>
-      <div class="profile-section">
-        <h3>Contact Information</h3>
-        <div><strong>Mobile:</strong> ${profile.mobile1}</div>
-        <div><strong>Alternate Mobile:</strong> ${profile.mobile2 || 'N/A'}</div>
-        <div><strong>Email:</strong> ${profile.email}</div>
-      </div>
-      <div class="profile-section">
-        <h3>Document Information</h3>
-        <div><strong>DL Number:</strong> ${profile.dlNumber}</div>
-        <div><strong>DL Status:</strong> ${profile.documents?.dl || 'Not uploaded'}</div>
-        <div><strong>Aadhar Number:</strong> ${profile.aadharNumber}</div>
-        <div><strong>Aadhar Status:</strong> ${profile.documents?.aadhar || 'Not uploaded'}</div>
-        <div><strong>PAN Number:</strong> ${profile.panNumber}</div>
-        <div><strong>Passport Number:</strong> ${profile.passportNumber || 'N/A'}</div>
-        <div><strong>Passport Status:</strong> ${profile.documents?.passport || 'Not uploaded'}</div>
-        <div><strong>Photo Status:</strong> ${profile.documents?.photo || 'Not uploaded'}</div>
-      </div>
-      <div class="profile-section">
-        <h3>Address Information</h3>
-        <div><strong>Permanent Address:</strong> ${profile.permanentAddress}</div>
-        <div><strong>Present Address:</strong> ${profile.presentAddress}</div>
-      </div>
-      <div class="profile-section">
-        <h3>References</h3>
-        <div><strong>Reference 1:</strong> ${profile.reference1Name} (${profile.reference1Relation}) - ${profile.reference1Mobile}</div>
-        <div><strong>Reference 2:</strong> ${profile.reference2Name} (${profile.reference2Relation}) - ${profile.reference2Mobile}</div>
-      </div>
-    `;
-  } else {
-    profileDiv.innerHTML = '<div class="no-profile">No profile found for this driver</div>';
-  }
-}
-
-function editDriverProfile() {
-  const driver = document.getElementById('driverSelect').value;
-  if (!driver) {
-    alert('Please select a driver first');
-    return;
-  }
-
-  const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
-  const profile = driverProfiles.find(d => d.id === driver);
-  
-  if (!profile) {
-    alert('No profile found for this driver');
-    return;
-  }
-
-  // Open joining form in edit mode
-  localStorage.setItem('editDriverProfile', JSON.stringify(profile));
-  window.location.href = 'joining-form.html?edit=true';
-}
-
-function deleteDriverProfile() {
-  const driverId = document.getElementById('driverSelect').value;
-  if (!driverId) {
-    alert('Please select a driver first');
-    return;
-  }
-
-  const driverProfiles = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
-  const driver = driverProfiles.find(d => d.id === driverId);
-  
-  if (!driver) {
-    alert('No profile found for this driver');
-    return;
-  }
-
-  if (!confirm(`Are you sure you want to delete ${driver.name}'s profile? This will also remove their vehicle assignment and room allocation.`)) {
-    return;
-  }
-
-  // Remove profile
-  const updatedProfiles = driverProfiles.filter(d => d.id !== driverId);
-  localStorage.setItem('driverProfiles', JSON.stringify(updatedProfiles));
-
-  // Remove assignments
-  const assignments = JSON.parse(localStorage.getItem('assignments') || '{}');
-  delete assignments[driverId];
-  localStorage.setItem('assignments', JSON.stringify(assignments));
-
-  // Remove room allocation
-  const roomAllocations = JSON.parse(localStorage.getItem('roomAllocations') || '{}');
-  delete roomAllocations[driverId];
-  localStorage.setItem('roomAllocations', JSON.stringify(roomAllocations));
-
-  // Update UI
-  updateDropdowns();
-  renderSetup();
-  alert('Driver profile deleted successfully');
-}
-
-function handleFileUpload(input, statusId) {
-  const status = document.getElementById(statusId);
-  if (input.files && input.files[0]) {
-    const file = input.files[0];
-    // Here you would typically upload the file to a server
-    // For now, we'll just show the filename
-    status.textContent = file.name;
-    status.style.color = '#4caf50';
-  } else {
-    status.textContent = 'No file selected';
-    status.style.color = '#666';
-  }
-}
-
-function handleJoiningSubmit(event) {
-  event.preventDefault();
-  try {
-    const name = document.getElementById('name').value.trim();
-    const mobile1 = document.getElementById('mobile1').value.trim();
-    
-    // Only validate name and mobile
-    if (!name) {
-      showJoiningError('Name is required');
-      return false;
-    }
-    
-    if (!mobile1 || !/^[0-9]{10}$/.test(mobile1)) {
-      showJoiningError('Valid 10-digit mobile number is required');
-      return false;
-    }
-
-    const driverData = {
-      name: name,
-      fatherName: document.getElementById('fatherName').value.trim(),
-      dob: document.getElementById('dob').value,
-      mobile1: mobile1,
-      mobile2: document.getElementById('mobile2').value.trim(),
-      email: document.getElementById('email').value.trim(),
-      dlNumber: document.getElementById('dlNumber').value.trim(),
-      dlUpload: document.getElementById('dlStatus').textContent,
-      aadharNumber: document.getElementById('aadharNumber').value.trim(),
-      aadharUpload: document.getElementById('aadharStatus').textContent,
-      panNumber: document.getElementById('panNumber').value.trim(),
-      passportNumber: document.getElementById('passportNumber').value.trim(),
-      passportUpload: document.getElementById('passportStatus').textContent,
-      permanentAddress: document.getElementById('permanentAddress').value.trim(),
-      photoUpload: document.getElementById('photoStatus').textContent,
-      presentAddress: document.getElementById('presentAddress').value.trim(),
-      reference1Name: document.getElementById('reference1Name').value.trim(),
-      reference1Relation: document.getElementById('reference1Relation').value.trim(),
-      reference1Mobile: document.getElementById('reference1Mobile').value.trim(),
-      reference2Name: document.getElementById('reference2Name').value.trim(),
-      reference2Relation: document.getElementById('reference2Relation').value.trim(),
-      reference2Mobile: document.getElementById('reference2Mobile').value.trim(),
-      timestamp: new Date().toISOString()
-    };
-
-    // Get existing drivers
-    const drivers = getStoredData('driverProfiles');
-    
-    // Check if driver already exists
-    const existingDriver = drivers.find(d => d.name === name);
-    if (existingDriver) {
-      showJoiningError('Driver with this name already exists');
-      return false;
-    }
-
-    // Add new driver
-    drivers.push(driverData);
-    
-    // Save updated drivers list
-    if (!saveStoredData('driverProfiles', drivers)) {
-      throw new Error('Failed to save driver profile');
-    }
-
-    // Reset form
-    event.target.reset();
-    
-    // Reset file upload statuses
-    ['dlStatus', 'aadharStatus', 'passportStatus', 'photoStatus'].forEach(id => {
-      document.getElementById(id).textContent = 'No file selected';
-    });
-
-    // Show success message
-    alert('Driver profile saved successfully!');
-    
-    // Update UI
-    updateDropdowns();
-    showTab('setup');
-    
-    return false;
-  } catch (error) {
-    console.error('Error in handleJoiningSubmit:', error);
-    showJoiningError(error.message || 'Error saving driver profile. Please try again.');
-    return false;
-  }
-}
-
-function showJoiningError(message) {
-  const errorMessage = document.getElementById('joiningErrorMessage');
-  errorMessage.style.display = 'block';
-  errorMessage.textContent = message;
-}
-
-function updateProfilePanel() {
-  const profilePanel = document.getElementById('profilePanel');
-  const currentUser = JSON.parse(localStorage.getItem('currentUser'));
-  if (!currentUser) return;
-
-  profilePanel.innerHTML = `
-    <div class="profile-info">
-      <div>${currentUser.name}</div>
-      <div class="profile-details-dropdown">
-        <h4>Profile Details</h4>
-        <div>Username: ${currentUser.username}</div>
-        <div>Role: ${currentUser.role}</div>
-        <div>Last Login: ${new Date(currentUser.lastLogin).toLocaleString()}</div>
-        <button onclick="logout()">Logout</button>
-      </div>
-    </div>
-  `;
-}
-
-function renderPINList() {
-  const pinList = document.getElementById('pinList');
-  const driverPins = JSON.parse(localStorage.getItem('driverPins') || '{}');
-  const drivers = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
-  
-  pinList.innerHTML = drivers.map(driver => {
-    const hasPin = driverPins[driver.id] ? 'Yes' : 'No';
-    return `
-      <div class="pin-item">
-        <div>
-          <strong>${driver.name}</strong>
-          <span>PIN Set: ${hasPin}</span>
-        </div>
-        <button onclick="resetDriverPin('${driver.id}')">Reset PIN</button>
-      </div>
-    `;
-  }).join('');
-}
-
-function renderSummaryCharts() {
-  const entries = JSON.parse(localStorage.getItem('entries') || '[]');
-  const drivers = JSON.parse(localStorage.getItem('driverProfiles') || '[]');
-  
-  // Earnings by Driver Chart
-  const earningsData = drivers.map(driver => {
-    const driverEntries = entries.filter(e => e.driver === driver.id);
-    const totalEarnings = driverEntries.reduce((sum, e) => sum + (e.earnings || 0), 0);
-    return { driver: driver.name, earnings: totalEarnings };
-  });
-
-  new Chart(document.getElementById('earningsChart'), {
-    type: 'bar',
-    data: {
-      labels: earningsData.map(d => d.driver),
-      datasets: [{
-        label: 'Total Earnings',
-        data: earningsData.map(d => d.earnings),
-        backgroundColor: '#4CAF50'
-      }]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: {
-            callback: value => formatCurrency(value)
-          }
-        }
-      }
-    }
-  });
-
-  // Weekly Trends Chart
-  const weeklyData = {};
-  entries.forEach(entry => {
-    const weekStart = getWeekStart(entry.date);
-    if (!weeklyData[weekStart]) {
-      weeklyData[weekStart] = { earnings: 0, trips: 0 };
-    }
-    weeklyData[weekStart].earnings += entry.earnings || 0;
-    weeklyData[weekStart].trips += entry.trips || 0;
-  });
-
-  new Chart(document.getElementById('weeklyTrendsChart'), {
-    type: 'line',
-    data: {
-      labels: Object.keys(weeklyData).map(date => new Date(date).toLocaleDateString()),
-      datasets: [{
-        label: 'Weekly Earnings',
-        data: Object.values(weeklyData).map(d => d.earnings),
-        borderColor: '#2196F3',
-        fill: false
-      }, {
-        label: 'Weekly Trips',
-        data: Object.values(weeklyData).map(d => d.trips),
-        borderColor: '#FFC107',
-        fill: false,
-        yAxisID: 'y1'
-      }]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: {
-            callback: value => formatCurrency(value)
-          }
-        },
-        y1: {
-          beginAtZero: true,
-          position: 'right'
         }
       }
     }
