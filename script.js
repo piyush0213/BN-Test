@@ -403,6 +403,8 @@ document.getElementById('entryForm').addEventListener('submit', function(event) 
     newEntry.commission = commission;
     newEntry.pl = pl;
 
+    console.log('New Entry before saving:', newEntry); // Added console log
+
     // Add to entries
     entries.push(newEntry);
     
@@ -1448,8 +1450,7 @@ function renderSummaryCharts() {
 }
 
 function formatCurrency(value) {
-  // Ensure value is a number, if not, default to 0
-  const numericValue = typeof value === 'number' && !isNaN(value) ? value : 0;
+  const numericValue = parseFloat(value) || 0; // Use parseFloat to handle potential string numbers
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
@@ -1507,12 +1508,12 @@ function calculatePay(earnings, offlineEarnings, cash, toll, cng, petrol, others
   const pnl = totalEarnings - salary - cngExpense - tollExpense - petrolExpense - otherExpenses - 1080; // Ensure 1080 is correctly subtracted
   
   return {
-    totalEarnings: totalEarnings.toFixed(2),
+    totalEarnings: totalEarnings,
     payPercent: payPercent,
-    salary: salary.toFixed(2),
-    commission: commission.toFixed(2),
-    payable: payable.toFixed(2),
-    pnl: pnl.toFixed(2)
+    salary: salary,
+    commission: commission,
+    payable: payable,
+    pnl: pnl
   };
 }
 
@@ -1686,7 +1687,6 @@ function deleteVehicle() {
 function handleVehicleSubmit(event) {
   event.preventDefault();
   try {
-    const name = document.getElementById('vehicleName').value.trim();
     const number = document.getElementById('vehicleNumber').value.trim();
     const type = document.getElementById('vehicleType').value;
     const status = document.getElementById('vehicleStatus').value;
