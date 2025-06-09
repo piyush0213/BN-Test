@@ -437,11 +437,6 @@ function renderDatabase() {
     const driverProfiles = getStoredData('driverProfiles');
     const vehicles = getStoredData('vehicles');
     
-    if (!Array.isArray(entries) || !Array.isArray(driverProfiles) || !Array.isArray(vehicles)) {
-      console.error('Invalid data format in localStorage');
-      return;
-    }
-
     const tbody = document.getElementById('dataBody');
     if (!tbody) return;
 
@@ -1706,10 +1701,11 @@ function handleVehicleSubmit(event) {
 
     const vehicles = getStoredData('vehicles');
     const assignments = getStoredData('assignments');
+    const selectedVehicle = document.getElementById('vehicleSelect').value;
 
     // Check if vehicle name already exists (for new vehicles)
     const existingVehicle = vehicles.find(v => v.name === name);
-    if (existingVehicle && !document.getElementById('vehicleSelect').value) {
+    if (existingVehicle && (!selectedVehicle || selectedVehicle !== name)) {
       throw new Error('Vehicle with this name already exists');
     }
 
@@ -1729,12 +1725,14 @@ function handleVehicleSubmit(event) {
     };
 
     let updatedVehicles;
-    if (existingVehicle) {
+    if (existingVehicle && selectedVehicle === name) {
       // Update existing vehicle
       updatedVehicles = vehicles.map(v => v.name === name ? vehicleData : v);
-    } else {
+    } else if (!existingVehicle) {
       // Add new vehicle
       updatedVehicles = [...vehicles, vehicleData];
+    } else {
+      throw new Error('Invalid vehicle update');
     }
 
     if (!saveStoredData('vehicles', updatedVehicles)) {
@@ -1815,9 +1813,12 @@ function updateVehicleDropdowns() {
 function getStoredData(key, defaultValue = []) {
   try {
     const data = localStorage.getItem(key);
-    return data ? JSON.parse(data) : defaultValue;
+    if (!data) return defaultValue;
+    
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : defaultValue;
   } catch (error) {
-    console.error(`Error reading ${key} from localStorage:`, error);
+    console.error(`Error getting ${key} from localStorage:`, error);
     return defaultValue;
   }
 }
@@ -1825,6 +1826,10 @@ function getStoredData(key, defaultValue = []) {
 // Helper function to safely save data to localStorage
 function saveStoredData(key, data) {
   try {
+    if (!Array.isArray(data)) {
+      console.error(`Data for ${key} must be an array`);
+      return false;
+    }
     localStorage.setItem(key, JSON.stringify(data));
     return true;
   } catch (error) {
@@ -1974,5 +1979,38 @@ function editEntry(entryId) {
   } catch (error) {
     console.error('Error in editEntry:', error);
     alert(error.message || 'Error editing entry. Please try again.');
+  }
+}
+
+// Add updateFilters function
+function updateFilters() {
+  try {
+    const entries = getStoredData('entries');
+    const driverProfiles = getStoredData('driverProfiles');
+    const vehicles = getStoredData('vehicles');
+
+    // Update driver filter
+    const filterDriver = document.getElementById('filterDriver');
+    if (filterDriver) {
+      const uniqueDrivers = [...new Set(entries.map(e => e.driver))];
+      filterDriver.innerHTML = '<option value="">All Drivers</option>' +
+        uniqueDrivers.map(driver => {
+          const profile = driverProfiles.find(d => d.name === driver);
+          return `<option value="${driver}">${profile ? profile.name : driver}</option>`;
+        }).join('');
+    }
+
+    // Update vehicle filter
+    const filterVehicle = document.getElementById('filterVehicle');
+    if (filterVehicle) {
+      const uniqueVehicles = [...new Set(entries.map(e => e.vehicle))];
+      filterVehicle.innerHTML = '<option value="">All Vehicles</option>' +
+        uniqueVehicles.map(vehicle => {
+          const v = vehicles.find(v => v.name === vehicle);
+          return `<option value="${vehicle}">${v ? `${v.name} (${v.number})` : vehicle}</option>`;
+        }).join('');
+    }
+  } catch (error) {
+    console.error('Error in updateFilters:', error);
   }
 }
