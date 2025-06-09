@@ -1,15 +1,35 @@
-// Check if user is logged in
+// Initialize required data structures if they don't exist
+function initializeStorage() {
+  const requiredKeys = {
+    'entries': [],
+    'driverProfiles': [],
+    'vehicles': [],
+    'assignments': [],
+    'roomAllocations': [],
+    'driverPins': { 'admin': '123456' }
+  };
+
+  for (const [key, defaultValue] of Object.entries(requiredKeys)) {
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, JSON.stringify(defaultValue));
+    }
+  }
+}
+
+// Check authentication and initialize app
 function checkAuth() {
+  initializeStorage(); // Initialize storage first
+  
   const currentUser = JSON.parse(localStorage.getItem('currentUser'));
   if (!currentUser) {
     window.location.href = 'login.html';
     return;
   }
 
-  // Set admin class on body if user is admin
-  if (currentUser.role === 'admin') {
-    document.body.classList.add('admin');
-  }
+  // Update UI based on role
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = currentUser.role === 'admin' ? '' : 'none';
+  });
 
   // Update welcome message
   const welcomeMessage = document.getElementById('welcomeMessage');
@@ -30,6 +50,7 @@ function checkAuth() {
   updateDropdowns();
   renderSetup();
   renderDatabase();
+  initializeRoleBasedUI();
 }
 
 // Logout function

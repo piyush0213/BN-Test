@@ -140,29 +140,53 @@
   <script>
     // Initialize default admin pin if not exists
     if (!localStorage.getItem('driverPins')) {
-      localStorage.setItem('driverPins', JSON.stringify({
-        'admin': '123456' // Default admin pin
-      }));
+      try {
+        localStorage.setItem('driverPins', JSON.stringify({
+          'admin': '123456' // Default admin pin
+        }));
+      } catch (error) {
+        console.error('Error initializing driverPins:', error);
+      }
     }
 
     function handleLogin(event) {
       event.preventDefault();
-      const username = document.getElementById('username').value;
-      const pin = document.getElementById('pin').value;
-      const driverPins = JSON.parse(localStorage.getItem('driverPins') || '{}');
-      
-      if (driverPins[username] === pin) {
-        // Set user role and redirect
-        const isAdmin = username === 'admin';
-        localStorage.setItem('currentUser', JSON.stringify({
-          username,
-          role: isAdmin ? 'admin' : 'driver'
-        }));
-        window.location.href = 'index.html';
-      } else {
+      try {
+        const username = document.getElementById('username').value.trim();
+        const pin = document.getElementById('pin').value.trim();
+        const errorMessage = document.getElementById('errorMessage');
+        
+        if (!username || !pin) {
+          errorMessage.style.display = 'block';
+          errorMessage.textContent = 'Please enter both username and PIN';
+          return false;
+        }
+
+        const driverPins = JSON.parse(localStorage.getItem('driverPins') || '{}');
+        
+        if (driverPins[username] === pin) {
+          // Clear any existing user data
+          localStorage.removeItem('currentUser');
+          
+          // Set user role and redirect
+          const isAdmin = username === 'admin';
+          const userData = {
+            username,
+            role: isAdmin ? 'admin' : 'driver',
+            loginTime: new Date().toISOString()
+          };
+          
+          localStorage.setItem('currentUser', JSON.stringify(userData));
+          window.location.href = 'index.html';
+        } else {
+          errorMessage.style.display = 'block';
+          errorMessage.textContent = 'Invalid username or PIN';
+        }
+      } catch (error) {
+        console.error('Login error:', error);
         const errorMessage = document.getElementById('errorMessage');
         errorMessage.style.display = 'block';
-        errorMessage.textContent = 'Invalid username or PIN';
+        errorMessage.textContent = 'An error occurred during login. Please try again.';
       }
       return false;
     }
